@@ -17,6 +17,14 @@ class StunClient {
   String localIp;
   int localPort;
 
+  int Ti = 395000;
+
+  int rto = 500; // 初始 RTO ms
+  int rc = 7; // 最大重传次数
+  int calculateSendIntervals(int rto, int rc) {
+    return rto * 1 << rc;
+  }
+
   StunClient({
     this.transport = Transport.udp,
     this.serverHost = "stun.hot-chilli.net",
@@ -65,7 +73,23 @@ class StunClient {
 
   tcp() async {
     Socket socket = await Socket.connect(serverHost, serverPort);
-    socket.timeout(Duration(seconds: 3));
+    socket.timeout(Duration(milliseconds: Ti));
+    socket.listen((Uint8List data) {
+      StunMessage stunMessage = StunMessage.form(data);
+      print(stunMessage.toString());
+      socket.destroy();
+    }, onDone: () {
+      socket.destroy();
+    }, onError: (error) {
+      socket.destroy();
+    });
+    StunMessage stunMessage = createBindingStunMessage();
+    socket.add(stunMessage.toUInt8List());
+  }
+
+  tls() async {
+    Socket socket = await SecureSocket.connect(serverHost, serverPort);
+    socket.timeout(Duration(milliseconds: Ti));
     socket.listen((Uint8List data) {
       StunMessage stunMessage = StunMessage.form(data);
       print(stunMessage.toString());

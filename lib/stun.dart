@@ -1,7 +1,8 @@
 import 'package:stun/stun_client.dart';
 
 main() async {
-  var stunClient = StunClient();
+  StunClient stunClient = StunClient();
   // stunClient.udp();
-  stunClient.tcp();
+  // stunClient.tcp();
+  stunClient.tls();
 }
