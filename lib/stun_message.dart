@@ -125,15 +125,28 @@ class StunMessage {
 
   static const int CLASS_REQUEST = 0x000;
   static const int CLASS_RESPONSE_SUCCESS = 0x100;
-  static const int CLASS_RESPONSE_ERROR = -1;//todo
-  static const int CLASS_INDICATION = -1;//todo
+  static const int CLASS_RESPONSE_ERROR = 0x010;
+  static const int CLASS_INDICATION = 0x110;
+  static const int CLASS_MASK = 0x110;
 
-  static const int TYPE_RESERVED = 0x000;
-  static const int TYPE_BINDING = 0x001;
-  static const int TYPE_SHARED_SECRET = 0x001;
+  static const int METHOD_RESERVED = 0x000;
+  static const int METHOD_BINDING = 0x001;
+  static const int METHOD_SHARED_SECRET = 0x002;
+  static const int METHOD_MASK = 0x3EEF;
+
   static final Map<int, String> TYPE_STRINGS = {
-    TYPE_BINDING | CLASS_REQUEST: "Binding Request",
-    TYPE_BINDING | CLASS_RESPONSE_SUCCESS: "Binding Success Response",
+    METHOD_RESERVED | CLASS_REQUEST: "Reserve Request",
+    METHOD_RESERVED | CLASS_RESPONSE_SUCCESS: "Reserve Success Response",
+    METHOD_RESERVED | CLASS_RESPONSE_ERROR: "Reserve Error Response",
+    METHOD_RESERVED | CLASS_INDICATION: "Reserve Indication",
+    METHOD_BINDING | CLASS_REQUEST: "Binding Request",
+    METHOD_BINDING | CLASS_RESPONSE_SUCCESS: "Binding Success Response",
+    METHOD_BINDING | CLASS_RESPONSE_ERROR: "Binding Error Response",
+    METHOD_BINDING | CLASS_INDICATION: "Binding Indication",
+    METHOD_SHARED_SECRET | CLASS_REQUEST: "Shared Secret Request",
+    METHOD_SHARED_SECRET | CLASS_RESPONSE_SUCCESS: "Shared Secret Success Response",
+    METHOD_SHARED_SECRET | CLASS_RESPONSE_ERROR: "Shared Secret Error Response",
+    METHOD_SHARED_SECRET | CLASS_INDICATION: "Shared Secret Indication",
   };
 
   String? get typeDisplayName => TYPE_STRINGS[type];
@@ -143,14 +156,38 @@ class StunMessage {
   StunMessage(this.head, this.type, this.length, this.cookie, this.transactionId, this.attributes);
 
   factory StunMessage.form(Uint8List data) {
+    //if error: drop this
     BitBuffer bitBuffer = BitBuffer.fromUInt8List(data, endian: Endian.big);
     int head = bitBuffer.getBits(0, 2);
+    assert(head == 0);
     int type = bitBuffer.getBits(2, 14);
-    int length = bitBuffer.getBits(16, 16);
-    int cookie = bitBuffer.getBits(32, 32);
-    int transactionId = bitBuffer.getBits(64, 96);
-    List<StunAttributes> attributes = StunAttributes.resolveAttributes(bitBuffer);
-    return StunMessage(head, type, length, cookie, transactionId, attributes);
+    int typeClass = type & CLASS_MASK;
+    int typeMethod = type & METHOD_MASK;
+    switch (typeClass) {
+      case CLASS_REQUEST:
+        throw Exception('Invalid class type: CLASS_REQUEST');
+      case CLASS_RESPONSE_SUCCESS:
+        switch (typeMethod) {
+          case METHOD_BINDING:
+            int length = bitBuffer.getBits(16, 16);
+            //todo assert length
+            int cookie = bitBuffer.getBits(32, 32);
+            assert(cookie == MAGIC_COOKIE);
+            int transactionId = bitBuffer.getBits(64, 96);
+            //todo assert transactionId
+            List<StunAttributes> attributes = StunAttributes.resolveAttributes(bitBuffer);
+            //todo assert FINGERPRINT
+            return StunMessage(head, type, length, cookie, transactionId, attributes);
+          default:
+            throw Exception();
+        }
+      case CLASS_RESPONSE_ERROR:
+        throw Exception('Response Error');
+      case CLASS_INDICATION:
+        throw Exception('Invalid class type: CLASS_INDICATION');
+      default:
+        throw Exception();
+    }
   }
 
   Uint8List toUInt8List() {
@@ -321,7 +358,10 @@ abstract class StunAttributes {
 
   static List<StunAttributes> resolveAttributes(BitBuffer bitBuffer) {
     List<StunAttributes> attributes = [];
-    int offset = 160;
+    //    All STUN messages MUST start with a 20-byte header followed by zero
+    //    or more Attributes.  The STUN header contains a STUN message type,
+    //    magic cookie, transaction ID, and message length.
+    int offset = 20 * 8;
     while (bitBuffer.getSize() > offset) {
       int attributeType = bitBuffer.getBits(offset, 16);
       int attributeLength = bitBuffer.getBits(offset + 16, 16);
@@ -479,8 +519,8 @@ class MappedAddressAttribute extends AddressAttribute {
   MappedAddressAttribute(super.type, super.length, super.head, super.family, super.port, super.address);
 
   factory MappedAddressAttribute.form(BitBuffer bitBuffer, int offset, int type, int length) {
-    AddressAttribute a = AddressAttribute.form(bitBuffer, offset, type, length);
-    return MappedAddressAttribute(a.type, a.length, a.head, a.family, a.port, a.address);
+    AddressAttribute attr = AddressAttribute.form(bitBuffer, offset, type, length);
+    return MappedAddressAttribute(attr.type, attr.length, attr.head, attr.family, attr.port, attr.address);
   }
 }
 
@@ -535,7 +575,7 @@ class XorMappedAddressAttribute extends AddressAttribute {
   XorMappedAddressAttribute(super.type, super.length, super.head, super.family, super.port, super.address);
 
   factory XorMappedAddressAttribute.form(BitBuffer bitBuffer, int offset, int type, int length) {
-    AddressAttribute a = AddressAttribute.form(bitBuffer, offset, type, length);
-    return XorMappedAddressAttribute(a.type, a.length, a.head, a.family, a.port, a.address);
+    AddressAttribute attr = AddressAttribute.form(bitBuffer, offset, type, length);
+    return XorMappedAddressAttribute(attr.type, attr.length, attr.head, attr.family, attr.port, attr.address);
   }
 }
