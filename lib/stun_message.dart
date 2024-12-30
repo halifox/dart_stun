@@ -519,8 +519,8 @@ class MappedAddressAttribute extends AddressAttribute {
   MappedAddressAttribute(super.type, super.length, super.head, super.family, super.port, super.address);
 
   factory MappedAddressAttribute.form(BitBuffer bitBuffer, int offset, int type, int length) {
-    AddressAttribute a = AddressAttribute.form(bitBuffer, offset, type, length);
-    return MappedAddressAttribute(a.type, a.length, a.head, a.family, a.port, a.address);
+    AddressAttribute attr = AddressAttribute.form(bitBuffer, offset, type, length);
+    return MappedAddressAttribute(attr.type, attr.length, attr.head, attr.family, attr.port, attr.address);
   }
 }
 
@@ -575,7 +575,7 @@ class XorMappedAddressAttribute extends AddressAttribute {
   XorMappedAddressAttribute(super.type, super.length, super.head, super.family, super.port, super.address);
 
   factory XorMappedAddressAttribute.form(BitBuffer bitBuffer, int offset, int type, int length) {
-    AddressAttribute a = AddressAttribute.form(bitBuffer, offset, type, length);
-    return XorMappedAddressAttribute(a.type, a.length, a.head, a.family, a.port, a.address);
+    AddressAttribute attr = AddressAttribute.form(bitBuffer, offset, type, length);
+    return XorMappedAddressAttribute(attr.type, attr.length, attr.head, attr.family, attr.port, attr.address);
   }
 }
