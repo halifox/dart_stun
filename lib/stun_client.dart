@@ -4,7 +4,14 @@ import 'dart:typed_data';
 
 import 'package:stun/stun_message.dart';
 
+enum Transport {
+  tcp,
+  udp,
+  tls,
+}
+
 class StunClient {
+  Transport transport;
   String serverHost;
   int serverPort;
   String localIp;
@@ -12,11 +19,24 @@ class StunClient {
   int transactionId = Random.secure().nextInt(0x12345678);
 
   StunClient({
+    this.transport = Transport.udp,
     this.serverHost = "stun.hot-chilli.net",
     this.serverPort = 3478,
     this.localIp = "0.0.0.0",
     this.localPort = 54320,
   });
+
+  StunMessage createBindingStunMessage() {
+    StunMessage stunMessage = StunMessage(
+      StunMessage.HEAD,
+      StunMessage.TYPE_BINDING,
+      0,
+      StunMessage.MAGIC_COOKIE,
+      transactionId++,
+      [],
+    );
+    return stunMessage;
+  }
 
   udp() async {
     RawDatagramSocket socket = await RawDatagramSocket.bind(InternetAddress(localIp), localPort);
@@ -38,14 +58,7 @@ class StunClient {
     if (addresses.isEmpty) throw Exception("Failed to resolve host: $serverHost");
 
     for (InternetAddress address in addresses) {
-      StunMessage stunMessage = StunMessage(
-        StunMessage.HEAD,
-        StunMessage.TYPE_BINDING,
-        0,
-        StunMessage.MAGIC_COOKIE,
-        transactionId++,
-        [],
-      );
+      StunMessage stunMessage = createBindingStunMessage();
       socket.send(stunMessage.toUInt8List(), address, serverPort);
     }
   }
@@ -62,14 +75,7 @@ class StunClient {
     }, onError: (error) {
       socket.destroy();
     });
-    StunMessage stunMessage = StunMessage(
-      StunMessage.HEAD,
-      StunMessage.TYPE_BINDING,
-      0,
-      StunMessage.MAGIC_COOKIE,
-      transactionId++,
-      [],
-    );
+    StunMessage stunMessage = createBindingStunMessage();
     socket.add(stunMessage.toUInt8List());
   }
 }
