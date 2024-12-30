@@ -16,7 +16,6 @@ class StunClient {
   int serverPort;
   String localIp;
   int localPort;
-  int transactionId = Random.secure().nextInt(0x12345678);
 
   StunClient({
     this.transport = Transport.udp,
@@ -29,10 +28,11 @@ class StunClient {
   StunMessage createBindingStunMessage() {
     StunMessage stunMessage = StunMessage(
       StunMessage.HEAD,
-      StunMessage.TYPE_BINDING,
+      StunMessage.TYPE_BINDING | StunMessage.CLASS_REQUEST,
       0,
       StunMessage.MAGIC_COOKIE,
-      transactionId++,
+      //todo: the transaction ID MUST be uniformly and randomly chosen from the interval 0 .. 2**96-1
+      Random.secure().nextInt(2 << 32 - 1),
       [],
     );
     return stunMessage;

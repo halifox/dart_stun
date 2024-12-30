@@ -125,15 +125,25 @@ class StunMessage {
 
   static const int CLASS_REQUEST = 0x000;
   static const int CLASS_RESPONSE_SUCCESS = 0x100;
-  static const int CLASS_RESPONSE_ERROR = -1;//todo
-  static const int CLASS_INDICATION = -1;//todo
+  static const int CLASS_RESPONSE_ERROR = 0x010;
+  static const int CLASS_INDICATION = 0x110;
 
   static const int TYPE_RESERVED = 0x000;
   static const int TYPE_BINDING = 0x001;
-  static const int TYPE_SHARED_SECRET = 0x001;
+  static const int TYPE_SHARED_SECRET = 0x002;
   static final Map<int, String> TYPE_STRINGS = {
+    TYPE_RESERVED | CLASS_REQUEST: "Reserve Request",
+    TYPE_RESERVED | CLASS_RESPONSE_SUCCESS: "Reserve Success Response",
+    TYPE_RESERVED | CLASS_RESPONSE_ERROR: "Reserve Error Response",
+    TYPE_RESERVED | CLASS_INDICATION: "Reserve Indication",
     TYPE_BINDING | CLASS_REQUEST: "Binding Request",
     TYPE_BINDING | CLASS_RESPONSE_SUCCESS: "Binding Success Response",
+    TYPE_BINDING | CLASS_RESPONSE_ERROR: "Binding Error Response",
+    TYPE_BINDING | CLASS_INDICATION: "Binding Indication",
+    TYPE_SHARED_SECRET | CLASS_REQUEST: "Shared Secret Request",
+    TYPE_SHARED_SECRET | CLASS_RESPONSE_SUCCESS: "Shared Secret Success Response",
+    TYPE_SHARED_SECRET | CLASS_RESPONSE_ERROR: "Shared Secret Error Response",
+    TYPE_SHARED_SECRET | CLASS_INDICATION: "Shared Secret Indication",
   };
 
   String? get typeDisplayName => TYPE_STRINGS[type];
@@ -321,7 +331,10 @@ abstract class StunAttributes {
 
   static List<StunAttributes> resolveAttributes(BitBuffer bitBuffer) {
     List<StunAttributes> attributes = [];
-    int offset = 160;
+    //    All STUN messages MUST start with a 20-byte header followed by zero
+    //    or more Attributes.  The STUN header contains a STUN message type,
+    //    magic cookie, transaction ID, and message length.
+    int offset = 20 * 8;
     while (bitBuffer.getSize() > offset) {
       int attributeType = bitBuffer.getBits(offset, 16);
       int attributeLength = bitBuffer.getBits(offset + 16, 16);
