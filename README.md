@@ -27,6 +27,7 @@
 
 400
 UNKNOWN-ATTRIBUTES
+ERROR-CODE Attribute
 
 ---
 

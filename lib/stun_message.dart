@@ -132,7 +132,7 @@ class StunMessage {
   static const int METHOD_RESERVED = 0x000;
   static const int METHOD_BINDING = 0x001;
   static const int METHOD_SHARED_SECRET = 0x002;
-  static const int METHOD_MASK = 0x0F;
+  static const int METHOD_MASK = 0x3EEF;
 
   static final Map<int, String> TYPE_STRINGS = {
     METHOD_RESERVED | CLASS_REQUEST: "Reserve Request",
