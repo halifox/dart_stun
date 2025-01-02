@@ -2,13 +2,13 @@
 
 ## 📖 简介
 
-一个用于快速处理 STUN（Session Traversal Utilities for NAT）协议的 Dart 库，完全符合 [RFC 5389](rfc5389.txt) 标准，支持 UDP、TCP 和 TLS，帮助开发者快速收发 STUN 报文。
+一个用于快速处理 STUN（Session Traversal Utilities for NAT）协议的 Dart 库，基于 [RFC 5389](rfc5389.txt) 标准，支持 UDP、TCP 和 TLS，帮助开发者快速收发 STUN 报文。
 
 ---
 
 ## ✨ 功能
 
-- **符合 RFC 5389 标准**：确保实现的兼容性和可靠性。
+- **基于 RFC 5389 标准**：确保实现的兼容性和可靠性。
 - **支持多种传输协议**：包括 UDP、TCP 和 TLS。
 - **简单易用**：快速构建和解析 STUN 消息。
 - **高性能**：优化的报文处理逻辑。
