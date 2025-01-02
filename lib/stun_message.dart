@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:bits/bits.dart';
+import 'package:bit_buffer/bit_buffer.dart';
 
 //6.  STUN Message Structure
 //
@@ -157,10 +157,11 @@ class StunMessage {
 
   factory StunMessage.form(Uint8List data) {
     //if error: drop this
-    BitBuffer bitBuffer = BitBuffer.fromUInt8List(data, endian: Endian.big);
-    int head = bitBuffer.getBits(0, 2);
+    BitBuffer bitBuffer = BitBuffer.formUInt8List(data, order: BitOrder.MSBFirst);
+    BitBufferReader reader = bitBuffer.reader();
+    int head = reader.getInt(binaryDigits: 2);
     assert(head == 0);
-    int type = bitBuffer.getBits(2, 14);
+    int type = reader.getInt(binaryDigits: 14);
     int typeClass = type & CLASS_MASK;
     int typeMethod = type & METHOD_MASK;
     switch (typeClass) {
@@ -169,13 +170,13 @@ class StunMessage {
       case CLASS_RESPONSE_SUCCESS:
         switch (typeMethod) {
           case METHOD_BINDING:
-            int length = bitBuffer.getBits(16, 16);
+            int length = reader.getInt(binaryDigits: 16);
             //todo assert length
-            int cookie = bitBuffer.getBits(32, 32);
+            int cookie = reader.getInt(binaryDigits: 32);
             assert(cookie == MAGIC_COOKIE);
-            int transactionId = bitBuffer.getBits(64, 96);
+            int transactionId = reader.getInt(binaryDigits: 96);
             //todo assert transactionId
-            List<StunAttributes> attributes = StunAttributes.resolveAttributes(bitBuffer);
+            List<StunAttributes> attributes = StunAttributes.resolveAttributes(reader);
             //todo assert FINGERPRINT
             return StunMessage(head, type, length, cookie, transactionId, attributes);
           default:
@@ -191,13 +192,13 @@ class StunMessage {
   }
 
   Uint8List toUInt8List() {
-    BitBuffer bitBuffer = BitBuffer(Endian.big);
+    BitBuffer bitBuffer = BitBuffer();
     BitBufferWriter writer = bitBuffer.writer();
-    writer.writeBits(head, 2);
-    writer.writeBits(type, 14);
-    writer.writeBits(length, 16);
-    writer.writeBits(cookie, 32);
-    writer.writeBits(transactionId, 96);
+    writer.putUnsignedInt(head, binaryDigits: 2, order: BitOrder.MSBFirst);
+    writer.putUnsignedInt(type, binaryDigits: 14, order: BitOrder.MSBFirst);
+    writer.putUnsignedInt(length, binaryDigits: 16, order: BitOrder.MSBFirst);
+    writer.putUnsignedInt(cookie, binaryDigits: 32, order: BitOrder.MSBFirst);
+    writer.putUnsignedInt(transactionId, binaryDigits: 96, order: BitOrder.MSBFirst);
     Uint8List buffer = bitBuffer.toUInt8List();
     return buffer;
   }
@@ -356,17 +357,17 @@ abstract class StunAttributes {
   @override
   String toString();
 
-  static List<StunAttributes> resolveAttributes(BitBuffer bitBuffer) {
+  static List<StunAttributes> resolveAttributes(BitBufferReader reader) {
     List<StunAttributes> attributes = [];
     //    All STUN messages MUST start with a 20-byte header followed by zero
     //    or more Attributes.  The STUN header contains a STUN message type,
     //    magic cookie, transaction ID, and message length.
     int offset = 20 * 8;
-    while (bitBuffer.getSize() > offset) {
-      int attributeType = bitBuffer.getBits(offset, 16);
-      int attributeLength = bitBuffer.getBits(offset + 16, 16);
+    while (reader.av > 0) {
+      int attributeType = reader.getInt(binaryDigits: 16);
+      int attributeLength = reader.getInt(binaryDigits: 16);
       offset += 32;
-      StunAttributes? attribute = resolveAttribute(bitBuffer, offset, attributeType, attributeLength);
+      StunAttributes? attribute = resolveAttribute(reader, offset, attributeType, attributeLength);
       if (attribute != null) {
         attributes.add(attribute);
       }
@@ -375,12 +376,12 @@ abstract class StunAttributes {
     return attributes;
   }
 
-  static StunAttributes? resolveAttribute(BitBuffer bitBuffer, int offset, int attributeType, int attributeLength) {
+  static StunAttributes? resolveAttribute(BitBufferReader reader, int offset, int attributeType, int attributeLength) {
     switch (attributeType) {
       case StunAttributes.TYPE_RESERVED:
         break;
       case StunAttributes.TYPE_MAPPED_ADDRESS:
-        return MappedAddressAttribute.form(bitBuffer, offset, attributeType, attributeLength);
+        return MappedAddressAttribute.form(reader, offset, attributeType, attributeLength);
       case StunAttributes.TYPE_RESPONSE_ADDRESS:
         break;
       case StunAttributes.TYPE_CHANGE_ADDRESS:
@@ -406,13 +407,15 @@ abstract class StunAttributes {
       case StunAttributes.TYPE_NONCE:
         break;
       case StunAttributes.TYPE_XOR_MAPPED_ADDRESS:
-        return XorMappedAddressAttribute.form(bitBuffer, offset, attributeType, attributeLength);
+        return XorMappedAddressAttribute.form(reader, offset, attributeType, attributeLength);
       case StunAttributes.TYPE_SOFTWARE:
         break;
       case StunAttributes.TYPE_ALTERNATE_SERVER:
         break;
       case StunAttributes.TYPE_FINGERPRINT:
         break;
+      default:
+        reader.getUnsignedInt(binaryDigits: attributeLength * 8);
     }
     return null;
   }
@@ -435,16 +438,16 @@ class AddressAttribute extends StunAttributes {
 
   AddressAttribute(super.type, super.length, this.head, this.family, this.port, this.address);
 
-  factory AddressAttribute.form(BitBuffer bitBuffer, int offset, int type, int length) {
-    int head = bitBuffer.getBits(offset + 0, 8);
-    int family = bitBuffer.getBits(offset + 8, 8);
-    int port = bitBuffer.getBits(offset + 16, 16);
+  factory AddressAttribute.form(BitBufferReader reader, int offset, int type, int length) {
+    int head = reader.getInt(binaryDigits: 8);
+    int family = reader.getInt(binaryDigits: 8);
+    int port = reader.getInt(binaryDigits: 16);
     int address;
     switch (family) {
       case FAMILY_IPV4:
-        address = bitBuffer.getBits(offset + 32, 32);
+        address = reader.getInt(binaryDigits: 32);
       case FAMILY_IPV6:
-        address = bitBuffer.getBits(offset + 32, 128);
+        address = reader.getInt(binaryDigits: 128);
       default:
         throw ArgumentError();
     }
@@ -452,15 +455,15 @@ class AddressAttribute extends StunAttributes {
   }
 
   String? get addressDisplayName {
-    BitBuffer bitBuffer = BitBuffer(Endian.big);
+    BitBuffer bitBuffer = BitBuffer();
     BitBufferWriter writer = bitBuffer.writer();
     BitBufferReader reader = bitBuffer.reader();
     switch (family) {
       case FAMILY_IPV4:
-        writer.writeBits(address, 32);
-        return "${reader.readBits(8)}.${reader.readBits(8)}.${reader.readBits(8)}.${reader.readBits(8)}";
+        writer.putUnsignedInt(address, binaryDigits: 32, order: BitOrder.MSBFirst);
+        return "${reader.getInt(binaryDigits: 8, order: BitOrder.MSBFirst)}.${reader.getInt(binaryDigits: 8, order: BitOrder.MSBFirst)}.${reader.getInt(binaryDigits: 8, order: BitOrder.MSBFirst)}.${reader.getInt(binaryDigits: 8, order: BitOrder.MSBFirst)}";
       case FAMILY_IPV6:
-        writer.writeBits(address, 128);
+        writer.putUnsignedInt(address, binaryDigits: 128, order: BitOrder.MSBFirst);
         return "";
       default:
         return "";
@@ -518,8 +521,8 @@ class AddressAttribute extends StunAttributes {
 class MappedAddressAttribute extends AddressAttribute {
   MappedAddressAttribute(super.type, super.length, super.head, super.family, super.port, super.address);
 
-  factory MappedAddressAttribute.form(BitBuffer bitBuffer, int offset, int type, int length) {
-    AddressAttribute attr = AddressAttribute.form(bitBuffer, offset, type, length);
+  factory MappedAddressAttribute.form(BitBufferReader reader, int offset, int type, int length) {
+    AddressAttribute attr = AddressAttribute.form(reader, offset, type, length);
     return MappedAddressAttribute(attr.type, attr.length, attr.head, attr.family, attr.port, attr.address);
   }
 }
@@ -574,8 +577,8 @@ class MappedAddressAttribute extends AddressAttribute {
 class XorMappedAddressAttribute extends AddressAttribute {
   XorMappedAddressAttribute(super.type, super.length, super.head, super.family, super.port, super.address);
 
-  factory XorMappedAddressAttribute.form(BitBuffer bitBuffer, int offset, int type, int length) {
-    AddressAttribute attr = AddressAttribute.form(bitBuffer, offset, type, length);
+  factory XorMappedAddressAttribute.form(BitBufferReader reader, int offset, int type, int length) {
+    AddressAttribute attr = AddressAttribute.form(reader, offset, type, length);
     return XorMappedAddressAttribute(attr.type, attr.length, attr.head, attr.family, attr.port, attr.address);
   }
 }
