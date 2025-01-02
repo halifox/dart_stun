@@ -1,8 +1,8 @@
-# Dart STUN Library
+# dart_stun
 
 ## 📖 简介
 
-一个用于快速处理 STUN（Session Traversal Utilities for NAT）协议的 Dart 库，基于 [RFC 5389](rfc5389.txt) 标准，支持 UDP、TCP 和 TLS，帮助开发者快速收发 STUN 报文。
+`dart_stun` 是一个用于快速处理 STUN（Session Traversal Utilities for NAT）协议的 Dart 库，基于 [RFC 5389](rfc5389.txt) 标准，支持 UDP、TCP 和 TLS，帮助开发者快速收发 STUN 报文。
 
 ---
 

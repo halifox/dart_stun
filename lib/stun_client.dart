@@ -46,6 +46,17 @@ class StunClient {
     return stunMessage;
   }
 
+  send() async {
+    switch (transport) {
+      case Transport.tcp:
+        tcp();
+      case Transport.udp:
+        udp();
+      case Transport.tls:
+        tls();
+    }
+  }
+
   udp() async {
     RawDatagramSocket socket = await RawDatagramSocket.bind(InternetAddress(localIp), localPort);
     socket.timeout(Duration(seconds: 3));
