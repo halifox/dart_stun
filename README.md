@@ -2,7 +2,7 @@
 
 ## 📖 简介
 
-`dart_stun` 是一个用于快速处理 STUN（Session Traversal Utilities for NAT）协议的 Dart 库，支持 [rfc3489.txt](rfc3489.txt) [rfc5389.txt](rfc5389.txt) [rfc5780.txt](rfc5780.txt) 标准，支持 UDP、TCP 和 TLS，帮助开发者快速收发 STUN 报文。
+`dart_stun` 是一个用于快速处理 STUN（Session Traversal Utilities for NAT）协议的 Dart 库，支持 RFC 3489、RFC 5389、RFC 5780 标准，支持 UDP、TCP 和 TLS，帮助开发者快速收发 STUN 报文。
 
 ---
 
