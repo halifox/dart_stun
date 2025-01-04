@@ -16,6 +16,7 @@ class StunClient {
   int serverPort;
   String localIp;
   int localPort;
+  StunProtocol stunProtocol;
 
   int Ti = 395000;
 
@@ -31,6 +32,7 @@ class StunClient {
     this.serverPort = 3478,
     this.localIp = "0.0.0.0",
     this.localPort = 54320,
+    this.stunProtocol = StunProtocol.RFC5389,
   });
 
   StunMessage createBindingStunMessage() {
@@ -42,6 +44,7 @@ class StunClient {
       //todo: the transaction ID MUST be uniformly and randomly chosen from the interval 0 .. 2**96-1
       Random.secure().nextInt(2 << 32 - 1),
       [],
+      stunProtocol,
     );
     return stunMessage;
   }
