@@ -1,6 +1,8 @@
 import 'dart:typed_data';
 
 import 'package:bit_buffer/bit_buffer.dart';
+import 'package:stun/stun_message_rfc3489.dart' as rfc3489;
+import 'package:stun/stun_message_rfc5389.dart' as rfc5389;
 
 //6.  STUN Message Structure
 //
@@ -113,12 +115,22 @@ import 'package:bit_buffer/bit_buffer.dart';
 //    attributes.  Each attribute is TLV (Type-Length-Value) encoded.  The
 //    details of the encoding, and of the attributes themselves are given
 //    in Section 15.
+
+enum StunProtocol {
+  RFC3489,
+  RFC5389,
+  // RFC5780, //todo
+  MIX,
+}
+
 class StunMessage {
   int head;
   int type;
   int length;
   int cookie;
   int transactionId;
+  StunProtocol stunProtocol;
+
   List<StunAttributes> attributes;
 
   static const int HEAD = 0x00;
@@ -153,7 +165,7 @@ class StunMessage {
 
   static const int MAGIC_COOKIE = 0x2112A442;
 
-  StunMessage(this.head, this.type, this.length, this.cookie, this.transactionId, this.attributes);
+  StunMessage(this.head, this.type, this.length, this.cookie, this.transactionId, this.attributes, this.stunProtocol);
 
   factory StunMessage.form(Uint8List data) {
     //if error: drop this
@@ -173,12 +185,12 @@ class StunMessage {
             int length = reader.getUnsignedInt(binaryDigits: 16);
             //todo assert length
             int cookie = reader.getUnsignedInt(binaryDigits: 32);
-            assert(cookie == MAGIC_COOKIE);
+            bool hasMagicCookie = cookie == MAGIC_COOKIE;
+            StunProtocol stunProtocol = hasMagicCookie ? StunProtocol.RFC5389 : StunProtocol.RFC3489;
             int transactionId = reader.getUnsignedInt(binaryDigits: 96);
-            //todo assert transactionId
-            List<StunAttributes> attributes = StunAttributes.resolveAttributes(reader);
+            List<StunAttributes> attributes = resolveAttributes(reader, stunProtocol);
             //todo assert FINGERPRINT
-            return StunMessage(head, type, length, cookie, transactionId, attributes);
+            return StunMessage(head, type, length, cookie, transactionId, attributes, stunProtocol);
           default:
             throw Exception();
         }
@@ -189,6 +201,37 @@ class StunMessage {
       default:
         throw Exception();
     }
+  }
+
+  static List<StunAttributes> resolveAttributes(BitBufferReader reader, StunProtocol stunProtocol) {
+    List<StunAttributes> attributes = [];
+    while (reader.remainingSize > 0) {
+      int attributeType = reader.getUnsignedInt(binaryDigits: 16);
+      int attributeLength = reader.getUnsignedInt(binaryDigits: 16);
+      switch (stunProtocol) {
+        case StunProtocol.RFC5389:
+          StunAttributes? attribute = rfc5389.resolveAttribute(reader, attributeType, attributeLength);
+          if (attribute != null) {
+            attributes.add(attribute);
+          }
+        case StunProtocol.RFC3489:
+          StunAttributes? attribute = rfc3489.resolveAttribute(reader, attributeType, attributeLength);
+          if (attribute != null) {
+            attributes.add(attribute);
+          }
+        case StunProtocol.MIX:
+          StunAttributes? attribute = rfc5389.resolveAttribute(reader, attributeType, attributeLength);
+          if (attribute != null) {
+            attributes.add(attribute);
+          } else {
+            StunAttributes? attribute = rfc3489.resolveAttribute(reader, attributeType, attributeLength);
+            if (attribute != null) {
+              attributes.add(attribute);
+            }
+          }
+      }
+    }
+    return attributes;
   }
 
   Uint8List toUInt8List() {
@@ -219,95 +262,7 @@ class StunMessage {
   }
 }
 
-//15.  STUN Attributes
-//
-//    After the STUN header are zero or more attributes.  Each attribute
-//    MUST be TLV encoded, with a 16-bit type, 16-bit length, and value.
-//    Each STUN attribute MUST end on a 32-bit boundary.  As mentioned
-//    above, all fields in an attribute are transmitted most significant
-//    bit first.
-//
-//        0                   1                   2                   3
-//        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-//       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//       |         Type                  |            Length             |
-//       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//       |                         Value (variable)                ....
-//       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//
-//                     Figure 4: Format of STUN Attributes
-//
-//    The value in the length field MUST contain the length of the Value
-//    part of the attribute, prior to padding, measured in bytes.  Since
-//    STUN aligns attributes on 32-bit boundaries, attributes whose content
-//    is not a multiple of 4 bytes are padded with 1, 2, or 3 bytes of
-//    padding so that its value contains a multiple of 4 bytes.  The
-//    padding bits are ignored, and may be any value.
-//
-//    Any attribute type MAY appear more than once in a STUN message.
-//    Unless specified otherwise, the order of appearance is significant:
-//    only the first occurrence needs to be processed by a receiver, and
-//    any duplicates MAY be ignored by a receiver.
-//
-//    To allow future revisions of this specification to add new attributes
-//    if needed, the attribute space is divided into two ranges.
-//    Attributes with type values between 0x0000 and 0x7FFF are
-//    comprehension-required attributes, which means that the STUN agent
-//    cannot successfully process the message unless it understands the
-//    attribute.  Attributes with type values between 0x8000 and 0xFFFF are
-//    comprehension-optional attributes, which means that those attributes
-//    can be ignored by the STUN agent if it does not understand them.
-//
-//    The set of STUN attribute types is maintained by IANA.  The initial
-//    set defined by this specification is found in Section 18.2.
-//
-//    The rest of this section describes the format of the various
-//    attributes defined in this specification.
 abstract class StunAttributes {
-  //18.2.  STUN Attribute Registry
-  //
-  //    A STUN Attribute type is a hex number in the range 0x0000 - 0xFFFF.
-  //    STUN attribute types in the range 0x0000 - 0x7FFF are considered
-  //    comprehension-required; STUN attribute types in the range 0x8000 -
-  //    0xFFFF are considered comprehension-optional.  A STUN agent handles
-  //    unknown comprehension-required and comprehension-optional attributes
-  //    differently.
-  //
-  //    The initial STUN Attributes types are:
-  //
-  //    Comprehension-required range (0x0000-0x7FFF):
-  //      0x0000: (Reserved)
-  //      0x0001: MAPPED-ADDRESS
-  //      0x0002: (Reserved; was RESPONSE-ADDRESS)
-  //      0x0003: (Reserved; was CHANGE-ADDRESS)
-  //      0x0004: (Reserved; was SOURCE-ADDRESS)
-  //      0x0005: (Reserved; was CHANGED-ADDRESS)
-  //      0x0006: USERNAME
-  //      0x0007: (Reserved; was PASSWORD)
-  //      0x0008: MESSAGE-INTEGRITY
-  //      0x0009: ERROR-CODE
-  //      0x000A: UNKNOWN-ATTRIBUTES
-  //      0x000B: (Reserved; was REFLECTED-FROM)
-  //      0x0014: REALM
-  //      0x0015: NONCE
-  //      0x0020: XOR-MAPPED-ADDRESS
-  //
-  //    Comprehension-optional range (0x8000-0xFFFF)
-  //      0x8022: SOFTWARE
-  //      0x8023: ALTERNATE-SERVER
-  //      0x8028: FINGERPRINT
-  //
-  //    STUN Attribute types in the first half of the comprehension-required
-  //    range (0x0000 - 0x3FFF) and in the first half of the comprehension-
-  //    optional range (0x8000 - 0xBFFF) are assigned by IETF Review
-  //    [RFC5226].  STUN Attribute types in the second half of the
-  //    comprehension-required range (0x4000 - 0x7FFF) and in the second half
-  //    of the comprehension-optional range (0xC000 - 0xFFFF) are assigned by
-  //    Designated Expert [RFC5226].  The responsibility of the expert is to
-  //    verify that the selected codepoint(s) are not in use, and that the
-  //    request is not for an abnormally large number of codepoints.
-  //    Technical review of the extension itself is outside the scope of the
-  //    designated expert responsibility.
   static const int TYPE_RESERVED = 0x0000;
   static const int TYPE_MAPPED_ADDRESS = 0x0001;
   static const int TYPE_RESPONSE_ADDRESS = 0x0002;
@@ -352,243 +307,23 @@ abstract class StunAttributes {
 
   StunAttributes(this.type, this.length);
 
-  String? get typeDisplayName => TYPE_STRINGS[type];
-
-  @override
-  String toString();
-
-  static List<StunAttributes> resolveAttributes(BitBufferReader reader) {
-    List<StunAttributes> attributes = [];
-    while (reader.remainingSize > 0) {
-      int attributeType = reader.getUnsignedInt(binaryDigits: 16);
-      int attributeLength = reader.getUnsignedInt(binaryDigits: 16);
-      StunAttributes? attribute = resolveAttribute(reader, attributeType, attributeLength);
-      if (attribute != null) {
-        attributes.add(attribute);
-      }
-    }
-    return attributes;
-  }
-
-  static StunAttributes? resolveAttribute(BitBufferReader reader, int attributeType, int attributeLength) {
-    switch (attributeType) {
-      case StunAttributes.TYPE_RESERVED:
-        reader.getUnsignedInt(binaryDigits: attributeLength * 8);
-        break;
-      case StunAttributes.TYPE_MAPPED_ADDRESS:
-        return MappedAddressAttribute.form(reader, attributeType, attributeLength);
-      case StunAttributes.TYPE_RESPONSE_ADDRESS:
-        reader.getUnsignedInt(binaryDigits: attributeLength * 8);
-        break;
-      case StunAttributes.TYPE_CHANGE_ADDRESS:
-        reader.getUnsignedInt(binaryDigits: attributeLength * 8);
-        break;
-      case StunAttributes.TYPE_SOURCE_ADDRESS:
-        reader.getUnsignedInt(binaryDigits: attributeLength * 8);
-        break;
-      case StunAttributes.TYPE_CHANGED_ADDRESS:
-        reader.getUnsignedInt(binaryDigits: attributeLength * 8);
-        break;
-      case StunAttributes.TYPE_USERNAME:
-        reader.getUnsignedInt(binaryDigits: attributeLength * 8);
-        break;
-      case StunAttributes.TYPE_PASSWORD:
-        reader.getUnsignedInt(binaryDigits: attributeLength * 8);
-        break;
-      case StunAttributes.TYPE_MESSAGE_INTEGRITY:
-        reader.getUnsignedInt(binaryDigits: attributeLength * 8);
-        break;
-      case StunAttributes.TYPE_ERROR_CODE:
-        reader.getUnsignedInt(binaryDigits: attributeLength * 8);
-        break;
-      case StunAttributes.TYPE_UNKNOWN_ATTRIBUTES:
-        reader.getUnsignedInt(binaryDigits: attributeLength * 8);
-        break;
-      case StunAttributes.TYPE_REFLECTED_FROM:
-        reader.getUnsignedInt(binaryDigits: attributeLength * 8);
-        break;
-      case StunAttributes.TYPE_REALM:
-        reader.getUnsignedInt(binaryDigits: attributeLength * 8);
-        break;
-      case StunAttributes.TYPE_NONCE:
-        reader.getUnsignedInt(binaryDigits: attributeLength * 8);
-        break;
-      case StunAttributes.TYPE_XOR_MAPPED_ADDRESS:
-        return XorMappedAddressAttribute.form(reader, attributeType, attributeLength);
-      case StunAttributes.TYPE_SOFTWARE:
-        reader.getUnsignedInt(binaryDigits: 12 * 8);
-        reader.getUnsignedInt(binaryDigits: 12 * 8);
-        break;
-      case StunAttributes.TYPE_ALTERNATE_SERVER:
-        break;
-      case StunAttributes.TYPE_FINGERPRINT:
-        reader.getUnsignedInt(binaryDigits: attributeLength * 8);
-        break;
-      default:
-        reader.getUnsignedInt(binaryDigits: attributeLength * 8);
-    }
-    return null;
-  }
-}
-
-class AddressAttribute extends StunAttributes {
-  static const int FAMILY_IPV4 = 0x01;
-  static const int FAMILY_IPV6 = 0x02;
-  static final FAMILY_STRINGS = {
-    FAMILY_IPV4: "IPv4",
-    FAMILY_IPV6: "IPv6",
-  };
-
-  String? get familyDisplayName => FAMILY_STRINGS[family];
-
-  int head;
-  int family;
-  int port;
-  int address;
-
-  AddressAttribute(super.type, super.length, this.head, this.family, this.port, this.address);
-
-  factory AddressAttribute.form(BitBufferReader reader, int type, int length) {
-    int head = reader.getUnsignedInt(binaryDigits: 8);
-    int family = reader.getUnsignedInt(binaryDigits: 8);
-    int port = reader.getUnsignedInt(binaryDigits: 16);
-    int address;
-    switch (family) {
-      case FAMILY_IPV4:
-        address = reader.getUnsignedInt(binaryDigits: 32);
-      case FAMILY_IPV6:
-        address = reader.getUnsignedInt(binaryDigits: 128);
-      default:
-        throw ArgumentError();
-    }
-    return AddressAttribute(type, length, head, family, port, address);
-  }
-
-  String? get addressDisplayName {
-    BitBuffer bitBuffer = BitBuffer();
-    BitBufferWriter writer = bitBuffer.writer();
-    BitBufferReader reader = bitBuffer.reader();
-    switch (family) {
-      case FAMILY_IPV4:
-        writer.putUnsignedInt(address, binaryDigits: 32, order: BitOrder.MSBFirst);
-        return "${reader.getUnsignedInt(binaryDigits: 8, order: BitOrder.MSBFirst)}.${reader.getUnsignedInt(binaryDigits: 8, order: BitOrder.MSBFirst)}.${reader.getUnsignedInt(binaryDigits: 8, order: BitOrder.MSBFirst)}.${reader.getUnsignedInt(binaryDigits: 8, order: BitOrder.MSBFirst)}";
-      case FAMILY_IPV6:
-        writer.putUnsignedInt(address, binaryDigits: 128, order: BitOrder.MSBFirst);
-        return "";
-      default:
-        return "";
-    }
-  }
+  String? get typeDisplayName => "${TYPE_STRINGS[type] ?? "Undefined"}(0x${type.toRadixString(16).padLeft(4, "0")})";
 
   @override
   String toString() {
     return """
-  ${typeDisplayName}: ${addressDisplayName}:${port}
+  ${typeDisplayName}: 暂未设置解析规则
     Attribute Type: ${typeDisplayName}
     Attribute Length: ${length}
-    Reserved: ${head}
-    Protocol Family: ${familyDisplayName} (0x0$family)
-    Port: ${port}
-    IP: ${addressDisplayName}
   """;
   }
 }
 
-//15.1.  MAPPED-ADDRESS
-//
-//    The MAPPED-ADDRESS attribute indicates a reflexive transport address
-//    of the client.  It consists of an 8-bit address family and a 16-bit
-//    port, followed by a fixed-length value representing the IP address.
-//    If the address family is IPv4, the address MUST be 32 bits.  If the
-//    address family is IPv6, the address MUST be 128 bits.  All fields
-//    must be in network byte order.
+class Undefined extends StunAttributes {
+  Undefined(super.type, super.length);
 
-//    The format of the MAPPED-ADDRESS attribute is:
-//
-//        0                   1                   2                   3
-//        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-//       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//       |0 0 0 0 0 0 0 0|    Family     |           Port                |
-//       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//       |                                                               |
-//       |                 Address (32 bits or 128 bits)                 |
-//       |                                                               |
-//       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//
-//                Figure 5: Format of MAPPED-ADDRESS Attribute
-//
-//    The address family can take on the following values:
-//
-//    0x01:IPv4
-//    0x02:IPv6
-//
-//    The first 8 bits of the MAPPED-ADDRESS MUST be set to 0 and MUST be
-//    ignored by receivers.  These bits are present for aligning parameters
-//    on natural 32-bit boundaries.
-//
-//    This attribute is used only by servers for achieving backwards
-//    compatibility with RFC 3489 [RFC3489] clients.
-class MappedAddressAttribute extends AddressAttribute {
-  MappedAddressAttribute(super.type, super.length, super.head, super.family, super.port, super.address);
-
-  factory MappedAddressAttribute.form(BitBufferReader reader, int type, int length) {
-    AddressAttribute attr = AddressAttribute.form(reader, type, length);
-    return MappedAddressAttribute(attr.type, attr.length, attr.head, attr.family, attr.port, attr.address);
-  }
-}
-
-//15.2.  XOR-MAPPED-ADDRESS
-//
-//    The XOR-MAPPED-ADDRESS attribute is identical to the MAPPED-ADDRESS
-//    attribute, except that the reflexive transport address is obfuscated
-//    through the XOR function.
-//
-//    The format of the XOR-MAPPED-ADDRESS is:
-//
-//       0                   1                   2                   3
-//       0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-//      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//      |x x x x x x x x|    Family     |         X-Port                |
-//      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//      |                X-Address (Variable)
-//      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-//
-//              Figure 6: Format of XOR-MAPPED-ADDRESS Attribute
-//
-//    The Family represents the IP address family, and is encoded
-//    identically to the Family in MAPPED-ADDRESS.
-//
-//    X-Port is computed by taking the mapped port in host byte order,
-//    XOR'ing it with the most significant 16 bits of the magic cookie, and
-//    then the converting the result to network byte order.  If the IP
-//    address family is IPv4, X-Address is computed by taking the mapped IP
-//    address in host byte order, XOR'ing it with the magic cookie, and
-//    converting the result to network byte order.  If the IP address
-//    family is IPv6, X-Address is computed by taking the mapped IP address
-//    in host byte order, XOR'ing it with the concatenation of the magic
-//    cookie and the 96-bit transaction ID, and converting the result to
-//    network byte order.
-//
-//    The rules for encoding and processing the first 8 bits of the
-//    attribute's value, the rules for handling multiple occurrences of the
-//    attribute, and the rules for processing address families are the same
-//    as for MAPPED-ADDRESS.
-//
-//    Note: XOR-MAPPED-ADDRESS and MAPPED-ADDRESS differ only in their
-//    encoding of the transport address.  The former encodes the transport
-//    address by exclusive-or'ing it with the magic cookie.  The latter
-//    encodes it directly in binary.  RFC 3489 originally specified only
-//    MAPPED-ADDRESS.  However, deployment experience found that some NATs
-//    rewrite the 32-bit binary payloads containing the NAT's public IP
-//    address, such as STUN's MAPPED-ADDRESS attribute, in the well-meaning
-//    but misguided attempt at providing a generic ALG function.  Such
-//    behavior interferes with the operation of STUN and also causes
-//    failure of STUN's message-integrity checking.
-class XorMappedAddressAttribute extends AddressAttribute {
-  XorMappedAddressAttribute(super.type, super.length, super.head, super.family, super.port, super.address);
-
-  factory XorMappedAddressAttribute.form(BitBufferReader reader, int type, int length) {
-    AddressAttribute attr = AddressAttribute.form(reader, type, length);
-    return XorMappedAddressAttribute(attr.type, attr.length, attr.head, attr.family, attr.port, attr.address);
+  factory Undefined.form(BitBufferReader reader, int type, int length) {
+    reader.getUnsignedInt(binaryDigits: length * 8);
+    return Undefined(type, length);
   }
 }
