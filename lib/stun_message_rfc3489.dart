@@ -114,12 +114,9 @@ StunAttributes? resolveAttribute(BitBufferReader reader, int type, int length, {
       return ReflectedFrom.form(reader, type, length);
 
     default:
-      print("rfc3489 未定义的类型${type}");
-      if (!isMix) {
-        reader.getUnsignedInt(binaryDigits: length * 8);
-      }
+      if (isMix) return null;
+      return Undefined.form(reader, type, length);
   }
-  return null;
 }
 
 // 11.2.1 MAPPED-ADDRESS

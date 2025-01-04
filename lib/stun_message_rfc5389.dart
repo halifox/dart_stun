@@ -170,10 +170,8 @@ StunAttributes? resolveAttribute(BitBufferReader reader, int type, int length, {
       return Fingerprint.form(reader, type, length);
 
     default:
-      print("rfc5389 未定义的类型${type}");
-      if (!isMix) {
-        reader.getUnsignedInt(binaryDigits: length * 8);
-      }
+      if (isMix) return null;
+      return Undefined.form(reader, type, length);
   }
   return null;
 }

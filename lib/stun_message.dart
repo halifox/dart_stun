@@ -188,7 +188,6 @@ class StunMessage {
             bool hasMagicCookie = cookie == MAGIC_COOKIE;
             StunProtocol stunProtocol = hasMagicCookie ? StunProtocol.RFC5389 : StunProtocol.RFC3489;
             int transactionId = reader.getUnsignedInt(binaryDigits: 96);
-            //todo assert transactionId
             List<StunAttributes> attributes = resolveAttributes(reader, stunProtocol);
             //todo assert FINGERPRINT
             return StunMessage(head, type, length, cookie, transactionId, attributes, stunProtocol);
@@ -308,8 +307,23 @@ abstract class StunAttributes {
 
   StunAttributes(this.type, this.length);
 
-  String? get typeDisplayName => TYPE_STRINGS[type];
+  String? get typeDisplayName => "${TYPE_STRINGS[type] ?? "Undefined"}(0x${type.toRadixString(16).padLeft(4, "0")})";
 
   @override
-  String toString();
+  String toString() {
+    return """
+  ${typeDisplayName}: 暂未设置解析规则
+    Attribute Type: ${typeDisplayName}
+    Attribute Length: ${length}
+  """;
+  }
+}
+
+class Undefined extends StunAttributes {
+  Undefined(super.type, super.length);
+
+  factory Undefined.form(BitBufferReader reader, int type, int length) {
+    reader.getUnsignedInt(binaryDigits: length * 8);
+    return Undefined(type, length);
+  }
 }
