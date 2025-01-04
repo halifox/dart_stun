@@ -1,6 +1,83 @@
 import 'package:bit_buffer/bit_buffer.dart';
 import 'package:stun/stun_message.dart';
 
+// 11.2  Message Attributes
+//
+//    After the header are 0 or more attributes.  Each attribute is TLV
+//    encoded, with a 16 bit type, 16 bit length, and variable value:
+//
+//     0                   1                   2                   3
+//     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//    |         Type                  |            Length             |
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//    |                             Value                             ....
+//    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//
+//    The following types are defined:
+//
+//    0x0001: MAPPED-ADDRESS
+//    0x0002: RESPONSE-ADDRESS
+//    0x0003: CHANGE-REQUEST
+//    0x0004: SOURCE-ADDRESS
+//    0x0005: CHANGED-ADDRESS
+//    0x0006: USERNAME
+//    0x0007: PASSWORD
+//    0x0008: MESSAGE-INTEGRITY
+//    0x0009: ERROR-CODE
+//    0x000a: UNKNOWN-ATTRIBUTES
+//    0x000b: REFLECTED-FROM
+//
+//    To allow future revisions of this specification to add new attributes
+//    if needed, the attribute space is divided into optional and mandatory
+//    ones.  Attributes with values greater than 0x7fff are optional, which
+//    means that the message can be processed by the client or server even
+//    though the attribute is not understood.  Attributes with values less
+//    than or equal to 0x7fff are mandatory to understand, which means that
+//    the client or server cannot process the message unless it understands
+//    the attribute.
+//
+//    The MESSAGE-INTEGRITY attribute MUST be the last attribute within a
+//    message.  Any attributes that are known, but are not supposed to be
+//    present in a message (MAPPED-ADDRESS in a request, for example) MUST
+//    be ignored.
+//
+//    Table 2 indicates which attributes are present in which messages.  An
+//    M indicates that inclusion of the attribute in the message is
+//    mandatory, O means its optional, C means it's conditional based on
+//    some other aspect of the message, and N/A means that the attribute is
+//    not applicable to that message type.
+//
+//
+//
+//
+//
+// Rosenberg, et al.           Standards Track                    [Page 26]
+//
+// RFC 3489                          STUN                        March 2003
+//
+//
+//                                          Binding  Shared  Shared  Shared
+//                        Binding  Binding  Error    Secret  Secret  Secret
+//    Att.                Req.     Resp.    Resp.    Req.    Resp.   Error
+//                                                                   Resp.
+//    _____________________________________________________________________
+//    MAPPED-ADDRESS      N/A      M        N/A      N/A     N/A     N/A
+//    RESPONSE-ADDRESS    O        N/A      N/A      N/A     N/A     N/A
+//    CHANGE-REQUEST      O        N/A      N/A      N/A     N/A     N/A
+//    SOURCE-ADDRESS      N/A      M        N/A      N/A     N/A     N/A
+//    CHANGED-ADDRESS     N/A      M        N/A      N/A     N/A     N/A
+//    USERNAME            O        N/A      N/A      N/A     M       N/A
+//    PASSWORD            N/A      N/A      N/A      N/A     M       N/A
+//    MESSAGE-INTEGRITY   O        O        N/A      N/A     N/A     N/A
+//    ERROR-CODE          N/A      N/A      M        N/A     N/A     M
+//    UNKNOWN-ATTRIBUTES  N/A      N/A      C        N/A     N/A     C
+//    REFLECTED-FROM      N/A      C        N/A      N/A     N/A     N/A
+//
+//    Table 2: Summary of Attributes
+//
+//    The length refers to the length of the value element, expressed as an
+//    unsigned integral number of bytes.
 StunAttributes? resolveAttribute(BitBufferReader reader, int type, int length, {bool isMix = false}) {
   switch (type) {
     case StunAttributes.TYPE_MAPPED_ADDRESS:
@@ -37,6 +114,7 @@ StunAttributes? resolveAttribute(BitBufferReader reader, int type, int length, {
       return ReflectedFrom.form(reader, type, length);
 
     default:
+      print("rfc3489 未定义的类型${type}");
       if (!isMix) {
         reader.getUnsignedInt(binaryDigits: length * 8);
       }
@@ -198,7 +276,6 @@ typedef SourceAddress = MappedAddressAttribute;
 //    The value of USERNAME is a variable length opaque value.  Its length
 //    MUST be a multiple of 4 (measured in bytes) in order to guarantee
 //    alignment of attributes on word boundaries.
-
 class Username extends StunAttributes {
   Username(super.type, super.length);
 
@@ -350,7 +427,6 @@ class ErrorCodeAttribute extends StunAttributes {
 //     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 //     |      Attribute 3 Type           |     Attribute 4 Type    ...
 //     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
 class UnknownAttributes extends StunAttributes {
   List<int> types;
 

@@ -2,6 +2,137 @@ import 'package:bit_buffer/bit_buffer.dart';
 import 'package:stun/stun_message.dart';
 import 'package:stun/stun_message_rfc3489.dart' as rfc3489;
 
+// 15.  STUN Attributes
+//
+//    After the STUN header are zero or more attributes.  Each attribute
+//    MUST be TLV encoded, with a 16-bit type, 16-bit length, and value.
+//    Each STUN attribute MUST end on a 32-bit boundary.  As mentioned
+//    above, all fields in an attribute are transmitted most significant
+//    bit first.
+//
+//        0                   1                   2                   3
+//        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+//       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//       |         Type                  |            Length             |
+//       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//       |                         Value (variable)                ....
+//       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//
+//                     Figure 4: Format of STUN Attributes
+//
+//
+//
+//
+// Rosenberg, et al.           Standards Track                    [Page 31]
+//
+// RFC 5389                          STUN                      October 2008
+//
+//
+//    The value in the length field MUST contain the length of the Value
+//    part of the attribute, prior to padding, measured in bytes.  Since
+//    STUN aligns attributes on 32-bit boundaries, attributes whose content
+//    is not a multiple of 4 bytes are padded with 1, 2, or 3 bytes of
+//    padding so that its value contains a multiple of 4 bytes.  The
+//    padding bits are ignored, and may be any value.
+//
+//    Any attribute type MAY appear more than once in a STUN message.
+//    Unless specified otherwise, the order of appearance is significant:
+//    only the first occurrence needs to be processed by a receiver, and
+//    any duplicates MAY be ignored by a receiver.
+//
+//    To allow future revisions of this specification to add new attributes
+//    if needed, the attribute space is divided into two ranges.
+//    Attributes with type values between 0x0000 and 0x7FFF are
+//    comprehension-required attributes, which means that the STUN agent
+//    cannot successfully process the message unless it understands the
+//    attribute.  Attributes with type values between 0x8000 and 0xFFFF are
+//    comprehension-optional attributes, which means that those attributes
+//    can be ignored by the STUN agent if it does not understand them.
+//
+//    The set of STUN attribute types is maintained by IANA.  The initial
+//    set defined by this specification is found in Section 18.2.
+//
+//    The rest of this section describes the format of the various
+//    attributes defined in this specification.
+
+// 18.2.  STUN Attribute Registry
+//
+//    A STUN Attribute type is a hex number in the range 0x0000 - 0xFFFF.
+//    STUN attribute types in the range 0x0000 - 0x7FFF are considered
+//    comprehension-required; STUN attribute types in the range 0x8000 -
+//    0xFFFF are considered comprehension-optional.  A STUN agent handles
+//    unknown comprehension-required and comprehension-optional attributes
+//    differently.
+//
+//    The initial STUN Attributes types are:
+//
+//
+//
+// Rosenberg, et al.           Standards Track                    [Page 43]
+//
+// RFC 5389                          STUN                      October 2008
+//
+//
+//    Comprehension-required range (0x0000-0x7FFF):
+//      0x0000: (Reserved)
+//      0x0001: MAPPED-ADDRESS
+//      0x0002: (Reserved; was RESPONSE-ADDRESS)
+//      0x0003: (Reserved; was CHANGE-ADDRESS)
+//      0x0004: (Reserved; was SOURCE-ADDRESS)
+//      0x0005: (Reserved; was CHANGED-ADDRESS)
+//      0x0006: USERNAME
+//      0x0007: (Reserved; was PASSWORD)
+//      0x0008: MESSAGE-INTEGRITY
+//      0x0009: ERROR-CODE
+//      0x000A: UNKNOWN-ATTRIBUTES
+//      0x000B: (Reserved; was REFLECTED-FROM)
+//      0x0014: REALM
+//      0x0015: NONCE
+//      0x0020: XOR-MAPPED-ADDRESS
+//
+//    Comprehension-optional range (0x8000-0xFFFF)
+//      0x8022: SOFTWARE
+//      0x8023: ALTERNATE-SERVER
+//      0x8028: FINGERPRINT
+//
+//    STUN Attribute types in the first half of the comprehension-required
+//    range (0x0000 - 0x3FFF) and in the first half of the comprehension-
+//    optional range (0x8000 - 0xBFFF) are assigned by IETF Review
+//    [RFC5226].  STUN Attribute types in the second half of the
+//    comprehension-required range (0x4000 - 0x7FFF) and in the second half
+//    of the comprehension-optional range (0xC000 - 0xFFFF) are assigned by
+//    Designated Expert [RFC5226].  The responsibility of the expert is to
+//    verify that the selected codepoint(s) are not in use, and that the
+//    request is not for an abnormally large number of codepoints.
+//    Technical review of the extension itself is outside the scope of the
+//    designated expert responsibility.
+//
+// 18.3.  STUN Error Code Registry
+//
+//    A STUN error code is a number in the range 0 - 699.  STUN error codes
+//    are accompanied by a textual reason phrase in UTF-8 [RFC3629] that is
+//    intended only for human consumption and can be anything appropriate;
+//    this document proposes only suggested values.
+//
+//    STUN error codes are consistent in codepoint assignments and
+//    semantics with SIP [RFC3261] and HTTP [RFC2616].
+//
+//    The initial values in this registry are given in Section 15.6.
+//
+//
+//
+//
+//
+//
+// Rosenberg, et al.           Standards Track                    [Page 44]
+//
+// RFC 5389                          STUN                      October 2008
+//
+//
+//    New STUN error codes are assigned based on IETF Review [RFC5226].
+//    The specification must carefully consider how clients that do not
+//    understand this error code will process it before granting the
+//    request.  See the rules in Section 7.3.4.
 StunAttributes? resolveAttribute(BitBufferReader reader, int type, int length, {bool isMix = false}) {
   switch (type) {
     case StunAttributes.TYPE_MAPPED_ADDRESS:
@@ -39,6 +170,7 @@ StunAttributes? resolveAttribute(BitBufferReader reader, int type, int length, {
       return Fingerprint.form(reader, type, length);
 
     default:
+      print("rfc5389 未定义的类型${type}");
       if (!isMix) {
         reader.getUnsignedInt(binaryDigits: length * 8);
       }
@@ -235,7 +367,6 @@ typedef MessageIntegrity = rfc3489.MessageIntegrity;
 //    attribute is also present, then it must be present with the correct
 //    message-integrity value before the CRC is computed, since the CRC is
 //    done over the value of the MESSAGE-INTEGRITY attribute as well.
-
 class Fingerprint extends StunAttributes {
   Fingerprint(super.type, super.length);
 
@@ -367,7 +498,6 @@ class Realm extends StunAttributes {
 //
 //    It MUST be less than 128 characters (which can be as long as 763
 //    bytes).
-
 class Nonce extends StunAttributes {
   Nonce(super.type, super.length);
 
