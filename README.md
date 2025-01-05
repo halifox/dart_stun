@@ -14,6 +14,20 @@
 
 ---
 
+## 📥 安装
+
+在 `pubspec.yaml` 文件中添加依赖：
+
+```yaml
+dependencies:
+  stun:
+    git:
+      url: https://github.com/halifox/dart_stun
+      ref: 1.0.0
+```
+
+---
+
 ## 🛠️ 使用方法
 
 这段代码演示了如何使用 `StunClient` 类与 STUN 服务器进行通信。STUN（Session Traversal Utilities for NAT）协议被广泛用于帮助 NAT（网络地址转换）后的设备建立直接的 UDP 或 TCP 连接。
