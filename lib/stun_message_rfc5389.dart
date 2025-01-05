@@ -133,7 +133,7 @@ import 'package:stun/stun_message_rfc3489.dart' as rfc3489;
 //    The specification must carefully consider how clients that do not
 //    understand this error code will process it before granting the
 //    request.  See the rules in Section 7.3.4.
-StunAttributes? resolveAttribute(BitBufferReader reader, int type, int length, {bool isMix = false}) {
+StunAttributes? resolveAttribute(BitBufferReader reader, int type, int length) {
   switch (type) {
     case StunAttributes.TYPE_MAPPED_ADDRESS:
       return MappedAddressAttribute.form(reader, type, length);
@@ -170,10 +170,8 @@ StunAttributes? resolveAttribute(BitBufferReader reader, int type, int length, {
       return Fingerprint.form(reader, type, length);
 
     default:
-      if (isMix) return null;
-      return Undefined.form(reader, type, length);
+      return null;
   }
-  return null;
 }
 
 //15.1.  MAPPED-ADDRESS
@@ -373,6 +371,16 @@ class Fingerprint extends StunAttributes {
     List<int> fingerprint = reader.getIntList(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
     return Fingerprint(type, length, fingerprint);
   }
+  @override
+  String toString() {
+    return """
+  ${typeDisplayName}:
+    Attribute Type: ${typeDisplayName}
+    Attribute Length: ${length}
+    fingerprint: ${fingerprint}
+  """;
+  }
+
 }
 
 // 15.6.  ERROR-CODE
@@ -551,6 +559,16 @@ class Software extends StunAttributes {
   factory Software.form(BitBufferReader reader, int type, int length) {
     String description = reader.getStringByUtf8(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
     return Software(type, length, description);
+  }
+
+  @override
+  String toString() {
+    return """
+  ${typeDisplayName}:
+    Attribute Type: ${typeDisplayName}
+    Attribute Length: ${length}
+    description: ${description}
+  """;
   }
 }
 

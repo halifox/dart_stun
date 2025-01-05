@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:bit_buffer/bit_buffer.dart';
 import 'package:stun/stun_message_rfc3489.dart' as rfc3489;
 import 'package:stun/stun_message_rfc5389.dart' as rfc5389;
+import 'package:stun/stun_message_rfc5780.dart' as rfc5780;
 
 //6.  STUN Message Structure
 //
@@ -119,7 +120,7 @@ import 'package:stun/stun_message_rfc5389.dart' as rfc5389;
 enum StunProtocol {
   RFC3489,
   RFC5389,
-  // RFC5780, //todo
+  RFC5780,
   MIX,
 }
 
@@ -209,25 +210,37 @@ class StunMessage {
       int attributeType = reader.getUnsignedInt(binaryDigits: 16);
       int attributeLength = reader.getUnsignedInt(binaryDigits: 16);
       switch (stunProtocol) {
+        case StunProtocol.RFC5780:
+          StunAttributes? attribute = rfc5780.resolveAttribute(reader, attributeType, attributeLength) ?? //
+              rfc5389.resolveAttribute(reader, attributeType, attributeLength);
+          if (attribute != null) {
+            attributes.add(attribute);
+          } else {
+            reader.getIntList(attributeLength * 8);
+          }
+
         case StunProtocol.RFC5389:
           StunAttributes? attribute = rfc5389.resolveAttribute(reader, attributeType, attributeLength);
           if (attribute != null) {
             attributes.add(attribute);
+          } else {
+            reader.getIntList(attributeLength * 8);
           }
         case StunProtocol.RFC3489:
           StunAttributes? attribute = rfc3489.resolveAttribute(reader, attributeType, attributeLength);
           if (attribute != null) {
             attributes.add(attribute);
+          } else {
+            reader.getIntList(attributeLength * 8);
           }
         case StunProtocol.MIX:
-          StunAttributes? attribute = rfc5389.resolveAttribute(reader, attributeType, attributeLength);
+          StunAttributes? attribute = rfc5780.resolveAttribute(reader, attributeType, attributeLength) ?? //
+              rfc5389.resolveAttribute(reader, attributeType, attributeLength) ?? //
+              rfc3489.resolveAttribute(reader, attributeType, attributeLength);
           if (attribute != null) {
             attributes.add(attribute);
           } else {
-            StunAttributes? attribute = rfc3489.resolveAttribute(reader, attributeType, attributeLength);
-            if (attribute != null) {
-              attributes.add(attribute);
-            }
+            reader.getIntList(attributeLength * 8);
           }
       }
     }
@@ -267,6 +280,7 @@ abstract class StunAttributes {
   static const int TYPE_MAPPED_ADDRESS = 0x0001;
   static const int TYPE_RESPONSE_ADDRESS = 0x0002;
   static const int TYPE_CHANGE_ADDRESS = 0x0003;
+  static const int TYPE_CHANGE_REQUEST = 0x0003; // rfc5780
   static const int TYPE_SOURCE_ADDRESS = 0x0004;
   static const int TYPE_CHANGED_ADDRESS = 0x0005;
   static const int TYPE_USERNAME = 0x0006;
@@ -278,14 +292,22 @@ abstract class StunAttributes {
   static const int TYPE_REALM = 0x0014;
   static const int TYPE_NONCE = 0x0015;
   static const int TYPE_XOR_MAPPED_ADDRESS = 0x0020;
+  static const int TYPE_PADDING = 0x0026; // rfc5780
+  static const int TYPE_RESPONSE_PORT = 0x0027; // rfc5780
+
+  // Comprehension-optional range (0x8000-0xFFFF):
   static const int TYPE_SOFTWARE = 0x8022;
   static const int TYPE_ALTERNATE_SERVER = 0x8023;
   static const int TYPE_FINGERPRINT = 0x8028;
+  static const int TYPE_RESPONSE_ORIGIN = 0x802b; // rfc5780
+  static const int TYPE_OTHER_ADDRESS = 0x802c; // rfc5780
+
   static final Map<int, String> TYPE_STRINGS = {
     TYPE_RESERVED: "RESERVED",
     TYPE_MAPPED_ADDRESS: "MAPPED-ADDRESS",
     TYPE_RESPONSE_ADDRESS: "RESPONSE-ADDRESS",
     TYPE_CHANGE_ADDRESS: "CHANGE-ADDRESS",
+    TYPE_CHANGE_REQUEST: "CHANGE-REQUEST",
     TYPE_SOURCE_ADDRESS: "SOURCE-ADDRESS",
     TYPE_CHANGED_ADDRESS: "CHANGED-ADDRESS",
     TYPE_USERNAME: "USERNAME",
@@ -297,9 +319,13 @@ abstract class StunAttributes {
     TYPE_REALM: "REALM",
     TYPE_NONCE: "NONCE",
     TYPE_XOR_MAPPED_ADDRESS: "XOR-MAPPED-ADDRESS",
+    TYPE_PADDING: "PADDING",
+    TYPE_RESPONSE_PORT: "RESPONSE-PORT",
     TYPE_SOFTWARE: "SOFTWARE",
     TYPE_ALTERNATE_SERVER: "ALTERNATE-SERVER",
     TYPE_FINGERPRINT: "FINGERPRINT",
+    TYPE_RESPONSE_ORIGIN: "RESPONSE-ORIGIN",
+    TYPE_OTHER_ADDRESS: "OTHER-ADDRESS",
   };
 
   int type;
@@ -323,7 +349,10 @@ class Undefined extends StunAttributes {
   Undefined(super.type, super.length);
 
   factory Undefined.form(BitBufferReader reader, int type, int length) {
-    reader.getUnsignedInt(binaryDigits: length * 8);
+    print("Undefined");
+    print(type);
+    print(length);
+    reader.getIntList(length * 8);
     return Undefined(type, length);
   }
 }

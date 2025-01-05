@@ -32,7 +32,7 @@ class StunClient {
     this.serverPort = 3478,
     this.localIp = "0.0.0.0",
     this.localPort = 54320,
-    this.stunProtocol = StunProtocol.RFC5389,
+    this.stunProtocol = StunProtocol.MIX,
   });
 
   StunMessage createBindingStunMessage() {

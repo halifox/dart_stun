@@ -78,7 +78,7 @@ import 'package:stun/stun_message.dart';
 //
 //    The length refers to the length of the value element, expressed as an
 //    unsigned integral number of bytes.
-StunAttributes? resolveAttribute(BitBufferReader reader, int type, int length, {bool isMix = false}) {
+StunAttributes? resolveAttribute(BitBufferReader reader, int type, int length) {
   switch (type) {
     case StunAttributes.TYPE_MAPPED_ADDRESS:
       return MappedAddressAttribute.form(reader, type, length);
@@ -114,8 +114,7 @@ StunAttributes? resolveAttribute(BitBufferReader reader, int type, int length, {
       return ReflectedFrom.form(reader, type, length);
 
     default:
-      if (isMix) return null;
-      return Undefined.form(reader, type, length);
+      return null;
   }
 }
 
@@ -156,6 +155,7 @@ class MappedAddressAttribute extends StunAttributes {
   MappedAddressAttribute(super.type, super.length, this.head, this.family, this.port, this.address);
 
   factory MappedAddressAttribute.form(BitBufferReader reader, int type, int length) {
+    assert(length == 8 || length == 20);
     int head = reader.getUnsignedInt(binaryDigits: 8);
     int family = reader.getUnsignedInt(binaryDigits: 8);
     int port = reader.getUnsignedInt(binaryDigits: 16);
@@ -241,8 +241,9 @@ typedef ChangedAddress = MappedAddressAttribute;
 //       server to send the Binding Response with a different port than the
 //       one the Binding Request was received on.
 class ChangeRequest extends StunAttributes {
-  bool flagChangeIp = false;
-  bool flagChangePort = false;
+  bool flagChangeIp;
+
+  bool flagChangePort;
 
   ChangeRequest(super.type, super.length, this.flagChangeIp, this.flagChangePort);
 
