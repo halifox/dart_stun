@@ -274,12 +274,13 @@ typedef SourceAddress = MappedAddressAttribute;
 //    MUST be a multiple of 4 (measured in bytes) in order to guarantee
 //    alignment of attributes on word boundaries.
 class Username extends StunAttributes {
-  Username(super.type, super.length);
+  String username;
+
+  Username(super.type, super.length, this.username);
 
   factory Username.form(BitBufferReader reader, int type, int length) {
-    reader.getIntList(length * 8, binaryDigits: 64, order: BitOrder.MSBFirst);
-    //todo
-    return Username(type, length);
+    String username = reader.getStringByUtf8(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
+    return Username(type, length, username);
   }
 }
 
@@ -293,12 +294,13 @@ class Username extends StunAttributes {
 //    bytes) in order to guarantee alignment of attributes on word
 //    boundaries.
 class Password extends StunAttributes {
-  Password(super.type, super.length);
+  String password;
+
+  Password(super.type, super.length, this.password);
 
   factory Password.form(BitBufferReader reader, int type, int length) {
-    reader.getIntList(length * 8, binaryDigits: 64, order: BitOrder.MSBFirst);
-    //todo
-    return Password(type, length);
+    String password = reader.getStringByUtf8(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
+    return Password(type, length, password);
   }
 }
 
@@ -314,12 +316,13 @@ class Password extends StunAttributes {
 //    MUST be the last attribute in any STUN message.  The key used as
 //    input to HMAC depends on the context.
 class MessageIntegrity extends StunAttributes {
-  MessageIntegrity(super.type, super.length);
+  List<int> key;
+
+  MessageIntegrity(super.type, super.length, this.key);
 
   factory MessageIntegrity.form(BitBufferReader reader, int type, int length) {
-    reader.getIntList(length * 8, binaryDigits: 64, order: BitOrder.MSBFirst);
-    //todo
-    return MessageIntegrity(type, length);
+    List<int> hmacSha1Digest = reader.getIntList(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
+    return MessageIntegrity(type, length, hmacSha1Digest);
   }
 }
 
@@ -399,7 +402,7 @@ class ErrorCodeAttribute extends StunAttributes {
     int number = reader.getUnsignedInt(binaryDigits: 8);
     int code = clz * 100 + number;
     int lenReason = length * 8 - 21 - 3 - 8;
-    String reason = reader.getStringByUtf8(lenReason);
+    String reason = reader.getStringByUtf8(lenReason, binaryDigits: 8, order: BitOrder.MSBFirst);
     return ErrorCodeAttribute(type, length, code, reason);
   }
 }

@@ -337,7 +337,6 @@ typedef Username = rfc3489.Username;
 //    HMAC.  Such adjustment is necessary when attributes, such as
 //    FINGERPRINT, appear after MESSAGE-INTEGRITY.
 
-//todo
 typedef MessageIntegrity = rfc3489.MessageIntegrity;
 
 // 15.5.  FINGERPRINT
@@ -366,12 +365,13 @@ typedef MessageIntegrity = rfc3489.MessageIntegrity;
 //    message-integrity value before the CRC is computed, since the CRC is
 //    done over the value of the MESSAGE-INTEGRITY attribute as well.
 class Fingerprint extends StunAttributes {
-  Fingerprint(super.type, super.length);
+  List<int> fingerprint;
+
+  Fingerprint(super.type, super.length, this.fingerprint);
 
   factory Fingerprint.form(BitBufferReader reader, int type, int length) {
-    reader.getIntList(length * 8, binaryDigits: 64, order: BitOrder.MSBFirst);
-    //todo
-    return Fingerprint(type, length);
+    List<int> fingerprint = reader.getIntList(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
+    return Fingerprint(type, length, fingerprint);
   }
 }
 
@@ -477,12 +477,13 @@ typedef ErrorCodeAttribute = rfc3489.ErrorCodeAttribute;
 //    error responses indicates that the server wishes the client to use a
 //    long-term credential for authentication.
 class Realm extends StunAttributes {
-  Realm(super.type, super.length);
+  String realm;
+
+  Realm(super.type, super.length, this.realm);
 
   factory Realm.form(BitBufferReader reader, int type, int length) {
-    reader.getIntList(length * 8, binaryDigits: 64, order: BitOrder.MSBFirst);
-    //todo
-    return Realm(type, length);
+    String realm = reader.getStringByUtf8(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
+    return Realm(type, length, realm);
   }
 }
 
@@ -497,12 +498,13 @@ class Realm extends StunAttributes {
 //    It MUST be less than 128 characters (which can be as long as 763
 //    bytes).
 class Nonce extends StunAttributes {
-  Nonce(super.type, super.length);
+  String nonce;
+
+  Nonce(super.type, super.length, this.nonce);
 
   factory Nonce.form(BitBufferReader reader, int type, int length) {
-    reader.getIntList(length * 8, binaryDigits: 64, order: BitOrder.MSBFirst);
-    //todo
-    return Nonce(type, length);
+    String nonce = reader.getStringByUtf8(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
+    return Nonce(type, length, nonce);
   }
 }
 
@@ -547,7 +549,7 @@ class Software extends StunAttributes {
   Software(super.type, super.length, this.description);
 
   factory Software.form(BitBufferReader reader, int type, int length) {
-    String description = reader.getStringByUtf8(length * 8, binaryDigits: 64, order: BitOrder.MSBFirst);
+    String description = reader.getStringByUtf8(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
     return Software(type, length, description);
   }
 }
