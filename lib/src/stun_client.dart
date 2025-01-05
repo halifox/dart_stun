@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
@@ -64,6 +65,21 @@ abstract class StunClient {
   disconnect();
 
   send(StunMessage stunMessage);
+
+  Future<StunMessage> sendAndAwait(StunMessage stunMessage) async {
+    Completer<StunMessage> completer = Completer<StunMessage>();
+    int transactionId = stunMessage.transactionId;
+    StunMessageListener listener = (StunMessage stunMessage) {
+      if (stunMessage.transactionId == transactionId) {
+        completer.complete(stunMessage);
+      }
+    };
+    addOnMessageListener(listener);
+    send(stunMessage);
+    StunMessage message = await completer.future;
+    removeOnMessageListener(listener);
+    return message;
+  }
 
   onData(Uint8List data) {
     StunMessage stunMessage = StunMessage.form(data, stunProtocol);
