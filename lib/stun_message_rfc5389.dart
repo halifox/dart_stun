@@ -369,7 +369,7 @@ class Fingerprint extends StunAttributes {
   Fingerprint(super.type, super.length);
 
   factory Fingerprint.form(BitBufferReader reader, int type, int length) {
-    reader.getUnsignedInt(binaryDigits: length * 8);
+    reader.getIntList(length * 8, binaryDigits: 64, order: BitOrder.MSBFirst);
     //todo
     return Fingerprint(type, length);
   }
@@ -480,7 +480,7 @@ class Realm extends StunAttributes {
   Realm(super.type, super.length);
 
   factory Realm.form(BitBufferReader reader, int type, int length) {
-    reader.getUnsignedInt(binaryDigits: length * 8);
+    reader.getIntList(length * 8, binaryDigits: 64, order: BitOrder.MSBFirst);
     //todo
     return Realm(type, length);
   }
@@ -500,7 +500,7 @@ class Nonce extends StunAttributes {
   Nonce(super.type, super.length);
 
   factory Nonce.form(BitBufferReader reader, int type, int length) {
-    reader.getUnsignedInt(binaryDigits: length * 8);
+    reader.getIntList(length * 8, binaryDigits: 64, order: BitOrder.MSBFirst);
     //todo
     return Nonce(type, length);
   }
@@ -542,13 +542,13 @@ typedef UnknownAttributes = rfc3489.UnknownAttributes;
 //    encoded sequence of less than 128 characters (which can be as long as
 //    763 bytes).
 class Software extends StunAttributes {
-  Software(super.type, super.length);
+  String description;
+
+  Software(super.type, super.length, this.description);
 
   factory Software.form(BitBufferReader reader, int type, int length) {
-    reader.getUnsignedInt(binaryDigits: 12 * 8);
-    reader.getUnsignedInt(binaryDigits: 12 * 8);
-    //todo
-    return Software(type, length);
+    String description = reader.getStringByUtf8(length * 8, binaryDigits: 64, order: BitOrder.MSBFirst);
+    return Software(type, length, description);
   }
 }
 

@@ -277,7 +277,7 @@ class Username extends StunAttributes {
   Username(super.type, super.length);
 
   factory Username.form(BitBufferReader reader, int type, int length) {
-    reader.getUnsignedInt(binaryDigits: length * 8);
+    reader.getIntList(length * 8, binaryDigits: 64, order: BitOrder.MSBFirst);
     //todo
     return Username(type, length);
   }
@@ -296,7 +296,7 @@ class Password extends StunAttributes {
   Password(super.type, super.length);
 
   factory Password.form(BitBufferReader reader, int type, int length) {
-    reader.getUnsignedInt(binaryDigits: length * 8);
+    reader.getIntList(length * 8, binaryDigits: 64, order: BitOrder.MSBFirst);
     //todo
     return Password(type, length);
   }
@@ -317,7 +317,7 @@ class MessageIntegrity extends StunAttributes {
   MessageIntegrity(super.type, super.length);
 
   factory MessageIntegrity.form(BitBufferReader reader, int type, int length) {
-    reader.getUnsignedInt(binaryDigits: length * 8);
+    reader.getIntList(length * 8, binaryDigits: 64, order: BitOrder.MSBFirst);
     //todo
     return MessageIntegrity(type, length);
   }
@@ -389,7 +389,7 @@ class MessageIntegrity extends StunAttributes {
 //
 class ErrorCodeAttribute extends StunAttributes {
   int code;
-  int reason;
+  String reason;
 
   ErrorCodeAttribute(super.type, super.length, this.code, this.reason);
 
@@ -399,8 +399,7 @@ class ErrorCodeAttribute extends StunAttributes {
     int number = reader.getUnsignedInt(binaryDigits: 8);
     int code = clz * 100 + number;
     int lenReason = length * 8 - 21 - 3 - 8;
-    int reason = reader.getUnsignedInt(binaryDigits: 8);
-    //todo
+    String reason = reader.getStringByUtf8(lenReason);
     return ErrorCodeAttribute(type, length, code, reason);
   }
 }
