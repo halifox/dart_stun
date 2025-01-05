@@ -5,18 +5,20 @@ import 'dart:typed_data';
 import 'package:stun/stun_message.dart';
 
 enum Transport {
-  tcp,
   udp,
+  tcp,
   tls,
 }
 
-class StunClient {
+abstract class StunClient {
   Transport transport;
   String serverHost;
   int serverPort;
   String localIp;
   int localPort;
   StunProtocol stunProtocol;
+
+  StunClient(this.transport, this.serverHost, this.serverPort, this.localIp, this.localPort, this.stunProtocol);
 
   int Ti = 395000;
 
@@ -26,14 +28,20 @@ class StunClient {
     return rto * 1 << rc;
   }
 
-  StunClient({
-    this.transport = Transport.udp,
-    this.serverHost = "stun.hot-chilli.net",
-    this.serverPort = 3478,
-    this.localIp = "0.0.0.0",
-    this.localPort = 54320,
-    this.stunProtocol = StunProtocol.MIX,
-  });
+  static StunClient create({
+    Transport transport = Transport.udp,
+    String serverHost = "stun.hot-chilli.net",
+    int serverPort = 3478,
+    String localIp = "0.0.0.0",
+    int localPort = 54320,
+    StunProtocol stunProtocol = StunProtocol.MIX,
+  }) {
+    return switch (transport) {
+      Transport.udp => StunClientUdp(transport, serverHost, serverPort, localIp, localPort, stunProtocol),
+      Transport.tcp => StunClientTcp(transport, serverHost, serverPort, localIp, localPort, stunProtocol),
+      Transport.tls => StunClientTls(transport, serverHost, serverPort, localIp, localPort, stunProtocol),
+    };
+  }
 
   StunMessage createBindingStunMessage() {
     StunMessage stunMessage = StunMessage(
@@ -49,71 +57,88 @@ class StunClient {
     return stunMessage;
   }
 
-  send() async {
-    switch (transport) {
-      case Transport.tcp:
-        tcp();
-      case Transport.udp:
-        udp();
-      case Transport.tls:
-        tls();
-    }
-  }
+  connect();
 
-  udp() async {
-    RawDatagramSocket socket = await RawDatagramSocket.bind(InternetAddress(localIp), localPort);
-    socket.timeout(Duration(seconds: 3));
-    socket.listen((RawSocketEvent socketEvent) {
+  send(StunMessage stunMessage);
+}
+
+class StunClientUdp extends StunClient {
+  RawDatagramSocket? socket;
+
+  List<InternetAddress> addresses = [];
+
+  StunClientUdp(super.transport, super.serverHost, super.serverPort, super.localIp, super.localPort, super.stunProtocol);
+
+  connect() async {
+    socket = await RawDatagramSocket.bind(InternetAddress(localIp), localPort);
+    socket?.timeout(Duration(milliseconds: Ti));
+    socket?.listen((RawSocketEvent socketEvent) {
       if (socketEvent != RawSocketEvent.read) return;
-      Datagram? incomingDatagram = socket.receive();
+      Datagram? incomingDatagram = socket?.receive();
       if (incomingDatagram == null) return;
       Uint8List data = incomingDatagram.data;
       StunMessage stunMessage = StunMessage.form(data, stunProtocol);
       print(stunMessage.toString());
     }, onDone: () {
-      socket.close();
+      socket?.close();
     }, onError: (error) {
-      socket.close();
+      socket?.close();
     });
-
-    List<InternetAddress> addresses = await InternetAddress.lookup(serverHost).timeout(const Duration(seconds: 3));
+    addresses = await InternetAddress.lookup(serverHost).timeout(const Duration(seconds: 3));
     if (addresses.isEmpty) throw Exception("Failed to resolve host: $serverHost");
-
-    for (InternetAddress address in addresses) {
-      StunMessage stunMessage = createBindingStunMessage();
-      socket.send(stunMessage.toUInt8List(), address, serverPort);
-    }
   }
 
-  tcp() async {
-    Socket socket = await Socket.connect(serverHost, serverPort);
-    socket.timeout(Duration(milliseconds: Ti));
-    socket.listen((Uint8List data) {
+  send(StunMessage stunMessage) {
+    if (addresses.isEmpty) throw Exception("Failed to resolve host: $serverHost");
+    InternetAddress address = addresses[0];
+    socket?.send(stunMessage.toUInt8List(), address, serverPort);
+  }
+}
+
+class StunClientTcp extends StunClient {
+  Socket? socket;
+
+  StunClientTcp(super.transport, super.serverHost, super.serverPort, super.localIp, super.localPort, super.stunProtocol);
+
+  connect() async {
+    socket = await Socket.connect(serverHost, serverPort);
+    socket?.timeout(Duration(milliseconds: Ti));
+    socket?.listen((Uint8List data) {
       StunMessage stunMessage = StunMessage.form(data, stunProtocol);
       print(stunMessage.toString());
-      socket.destroy();
+      socket?.destroy();
     }, onDone: () {
-      socket.destroy();
+      socket?.destroy();
     }, onError: (error) {
-      socket.destroy();
+      socket?.destroy();
     });
-    StunMessage stunMessage = createBindingStunMessage();
-    socket.add(stunMessage.toUInt8List());
   }
 
-  tls() async {
-    Socket socket = await SecureSocket.connect(serverHost, serverPort);
-    socket.timeout(Duration(milliseconds: Ti));
-    socket.listen((Uint8List data) {
+  send(StunMessage stunMessage) {
+    socket?.add(stunMessage.toUInt8List());
+  }
+}
+
+class StunClientTls extends StunClient {
+  Socket? socket;
+
+  StunClientTls(super.transport, super.serverHost, super.serverPort, super.localIp, super.localPort, super.stunProtocol);
+
+  connect() async {
+    socket = await SecureSocket.connect(serverHost, serverPort);
+    socket?.timeout(Duration(milliseconds: Ti));
+    socket?.listen((Uint8List data) {
       StunMessage stunMessage = StunMessage.form(data, stunProtocol);
       print(stunMessage.toString());
-      socket.destroy();
+      socket?.destroy();
     }, onDone: () {
-      socket.destroy();
+      socket?.destroy();
     }, onError: (error) {
-      socket.destroy();
+      socket?.destroy();
     });
-    StunMessage stunMessage = createBindingStunMessage();
-    socket.add(stunMessage.toUInt8List());
+  }
+
+  send(StunMessage stunMessage) {
+    socket?.add(stunMessage.toUInt8List());
   }
 }

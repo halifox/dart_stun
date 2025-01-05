@@ -343,15 +343,3 @@ abstract class StunAttributes {
   """;
   }
 }
-
-class Undefined extends StunAttributes {
-  Undefined(super.type, super.length);
-
-  factory Undefined.form(BitBufferReader reader, int type, int length) {
-    print("Undefined");
-    print(type);
-    print(length);
-    reader.getIntList(length * 8);
-    return Undefined(type, length);
-  }
-}
