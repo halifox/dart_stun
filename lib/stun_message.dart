@@ -168,7 +168,7 @@ class StunMessage {
 
   StunMessage(this.head, this.type, this.length, this.cookie, this.transactionId, this.attributes, this.stunProtocol);
 
-  factory StunMessage.form(Uint8List data) {
+  factory StunMessage.form(Uint8List data, StunProtocol stunProtocol) {
     //if error: drop this
     BitBuffer bitBuffer = BitBuffer.formUInt8List(data, order: BitOrder.MSBFirst);
     BitBufferReader reader = bitBuffer.reader();
@@ -187,7 +187,6 @@ class StunMessage {
             //todo assert length
             int cookie = reader.getUnsignedInt(binaryDigits: 32);
             bool hasMagicCookie = cookie == MAGIC_COOKIE;
-            StunProtocol stunProtocol = hasMagicCookie ? StunProtocol.RFC5389 : StunProtocol.RFC3489;
             int transactionId = reader.getUnsignedInt(binaryDigits: 96);
             List<StunAttributes> attributes = resolveAttributes(reader, stunProtocol);
             //todo assert FINGERPRINT

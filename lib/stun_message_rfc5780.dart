@@ -116,6 +116,16 @@ class ResponsePort extends StunAttributes {
     int _ = reader.getUnsignedInt(binaryDigits: 2 * 8); //todo
     return ResponsePort(type, length, port);
   }
+
+  @override
+  String toString() {
+    return """
+  ${typeDisplayName}:
+    Attribute Type: ${typeDisplayName}
+    Attribute Length: ${length}
+    port: ${port}
+  """;
+  }
 }
 
 // 7.6.  PADDING
@@ -138,5 +148,14 @@ class Padding extends StunAttributes {
   factory Padding.form(BitBufferReader reader, int type, int length) {
     reader.getIntList(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
     return Padding(type, length);
+  }
+
+  @override
+  String toString() {
+    return """
+  ${typeDisplayName}:
+    Attribute Type: ${typeDisplayName}
+    Attribute Length: ${length}
+  """;
   }
 }

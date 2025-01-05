@@ -68,7 +68,7 @@ class StunClient {
       Datagram? incomingDatagram = socket.receive();
       if (incomingDatagram == null) return;
       Uint8List data = incomingDatagram.data;
-      StunMessage stunMessage = StunMessage.form(data);
+      StunMessage stunMessage = StunMessage.form(data, stunProtocol);
       print(stunMessage.toString());
     }, onDone: () {
       socket.close();
@@ -89,7 +89,7 @@ class StunClient {
     Socket socket = await Socket.connect(serverHost, serverPort);
     socket.timeout(Duration(milliseconds: Ti));
     socket.listen((Uint8List data) {
-      StunMessage stunMessage = StunMessage.form(data);
+      StunMessage stunMessage = StunMessage.form(data, stunProtocol);
       print(stunMessage.toString());
       socket.destroy();
     }, onDone: () {
@@ -105,7 +105,7 @@ class StunClient {
     Socket socket = await SecureSocket.connect(serverHost, serverPort);
     socket.timeout(Duration(milliseconds: Ti));
     socket.listen((Uint8List data) {
-      StunMessage stunMessage = StunMessage.form(data);
+      StunMessage stunMessage = StunMessage.form(data, stunProtocol);
       print(stunMessage.toString());
       socket.destroy();
     }, onDone: () {

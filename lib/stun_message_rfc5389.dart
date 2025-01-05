@@ -371,6 +371,7 @@ class Fingerprint extends StunAttributes {
     List<int> fingerprint = reader.getIntList(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
     return Fingerprint(type, length, fingerprint);
   }
+
   @override
   String toString() {
     return """
@@ -380,7 +381,6 @@ class Fingerprint extends StunAttributes {
     fingerprint: ${fingerprint}
   """;
   }
-
 }
 
 // 15.6.  ERROR-CODE
@@ -493,6 +493,16 @@ class Realm extends StunAttributes {
     String realm = reader.getStringByUtf8(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
     return Realm(type, length, realm);
   }
+
+  @override
+  String toString() {
+    return """
+  ${typeDisplayName}:
+    Attribute Type: ${typeDisplayName}
+    Attribute Length: ${length}
+    realm: ${realm}
+  """;
+  }
 }
 
 // 15.8.  NONCE
@@ -513,6 +523,16 @@ class Nonce extends StunAttributes {
   factory Nonce.form(BitBufferReader reader, int type, int length) {
     String nonce = reader.getStringByUtf8(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
     return Nonce(type, length, nonce);
+  }
+
+  @override
+  String toString() {
+    return """
+  ${typeDisplayName}:
+    Attribute Type: ${typeDisplayName}
+    Attribute Length: ${length}
+    nonce: ${nonce}
+  """;
   }
 }
 

@@ -253,6 +253,17 @@ class ChangeRequest extends StunAttributes {
     int flagChangePort = flag & 0x04;
     return ChangeRequest(type, length, flagChangeIp != 0, flagChangePort != 0);
   }
+
+  @override
+  String toString() {
+    return """
+  ${typeDisplayName}:
+    Attribute Type: ${typeDisplayName}
+    Attribute Length: ${length}
+    flagChangeIp: ${flagChangeIp}
+    flagChangePort: ${flagChangePort}
+  """;
+  }
 }
 
 // 11.2.5 SOURCE-ADDRESS
@@ -283,6 +294,16 @@ class Username extends StunAttributes {
     String username = reader.getStringByUtf8(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
     return Username(type, length, username);
   }
+
+  @override
+  String toString() {
+    return """
+  ${typeDisplayName}:
+    Attribute Type: ${typeDisplayName}
+    Attribute Length: ${length}
+    username: ${username}
+  """;
+  }
 }
 
 // 11.2.7 PASSWORD
@@ -302,6 +323,16 @@ class Password extends StunAttributes {
   factory Password.form(BitBufferReader reader, int type, int length) {
     String password = reader.getStringByUtf8(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
     return Password(type, length, password);
+  }
+
+  @override
+  String toString() {
+    return """
+  ${typeDisplayName}:
+    Attribute Type: ${typeDisplayName}
+    Attribute Length: ${length}
+    password: ${password}
+  """;
   }
 }
 
@@ -324,6 +355,16 @@ class MessageIntegrity extends StunAttributes {
   factory MessageIntegrity.form(BitBufferReader reader, int type, int length) {
     List<int> hmacSha1Digest = reader.getIntList(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
     return MessageIntegrity(type, length, hmacSha1Digest);
+  }
+
+  @override
+  String toString() {
+    return """
+  ${typeDisplayName}:
+    Attribute Type: ${typeDisplayName}
+    Attribute Length: ${length}
+    key: ${key}
+  """;
   }
 }
 
@@ -406,6 +447,17 @@ class ErrorCodeAttribute extends StunAttributes {
     String reason = reader.getStringByUtf8(lenReason, binaryDigits: 8, order: BitOrder.MSBFirst);
     return ErrorCodeAttribute(type, length, code, reason);
   }
+
+  @override
+  String toString() {
+    return """
+  ${typeDisplayName}:
+    Attribute Type: ${typeDisplayName}
+    Attribute Length: ${length}
+    code: ${code}
+    reason: ${reason}
+  """;
+  }
 }
 
 // 11.2.10 UNKNOWN-ATTRIBUTES
@@ -439,6 +491,16 @@ class UnknownAttributes extends StunAttributes {
       types.add(type);
     }
     return UnknownAttributes(type, length, types);
+  }
+
+  @override
+  String toString() {
+    return """
+  ${typeDisplayName}:
+    Attribute Type: ${typeDisplayName}
+    Attribute Length: ${length}
+    types: ${types}
+  """;
   }
 }
 
