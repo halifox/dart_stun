@@ -1,22 +1,24 @@
 # dart_stun
 
-## 📖 简介
+[中文文档](README-CN.md)
 
-`dart_stun` 是一个用于快速处理 STUN（Session Traversal Utilities for NAT）协议的 Dart 库，支持 RFC 3489、RFC 5389、RFC 5780 标准，支持 UDP、TCP 和 TLS，帮助开发者快速收发 STUN 报文。
+## 📖 Introduction
 
----
-
-## ✨ 功能
-
-- **支持标准**：RFC 3489、RFC 5389、RFC 5780。
-- **支持多种传输协议**：包括 UDP、TCP 和 TLS。
-- **简单易用**：快速构建和解析 STUN 消息。
+`dart_stun` is a Dart library designed for fast processing of the STUN (Session Traversal Utilities for NAT) protocol. It supports RFC 3489, RFC 5389, and RFC 5780 standards and is compatible with UDP, TCP, and TLS. It helps developers quickly send and receive STUN messages.
 
 ---
 
-## 📥 安装
+## ✨ Features
 
-在 `pubspec.yaml` 文件中添加依赖：
+- **Supported Standards**: RFC 3489, RFC 5389, RFC 5780.
+- **Multiple Transport Protocols**: Including UDP, TCP, and TLS.
+- **Easy to Use**: Quickly build and parse STUN messages.
+
+---
+
+## 📥 Installation
+
+Add the dependency in your `pubspec.yaml` file:
 
 ```yaml
 dependencies:
@@ -28,76 +30,76 @@ dependencies:
 
 ---
 
-## 🛠️ 使用方法
+## 🛠️ Usage
 
-这段代码演示了如何使用 `StunClient` 类与 STUN 服务器进行通信。STUN（Session Traversal Utilities for NAT）协议被广泛用于帮助 NAT（网络地址转换）后的设备建立直接的 UDP 或 TCP 连接。
+The following code demonstrates how to use the `StunClient` class to communicate with a STUN server. The STUN (Session Traversal Utilities for NAT) protocol is widely used to help devices behind NAT (Network Address Translation) establish direct UDP or TCP connections.
 
-1. **创建 STUN 客户端**:
+1. **Create a STUN client**:
     ```dart
     StunClient stunClient = StunClient.create(
-      transport: Transport.udp,  // 选择传输协议：UDP, TCP, TLS等
-      serverHost: "stun.hot-chilli.net",  // STUN 服务器的主机名或IP地址
-      serverPort: 3478,  // STUN 服务器的端口（标准STUN端口是3478）
-      localIp: "0.0.0.0",  // 本地IP地址，通常可以设置为"0.0.0.0"，表示自动选择
-      localPort: 54320,  // 本地端口，客户端连接时会使用该端口
-      stunProtocol: StunProtocol.RFC5780,  // 选择STUN协议的版本，RFC5780是最常用的一个
+      transport: Transport.udp,  // Select transport protocol: UDP, TCP, TLS, etc.
+      serverHost: "stun.hot-chilli.net",  // Hostname or IP address of the STUN server
+      serverPort: 3478,  // STUN server port (standard is 3478)
+      localIp: "0.0.0.0",  // Local IP address, usually set to "0.0.0.0" for automatic selection
+      localPort: 54320,  // Local port to be used for the client connection
+      stunProtocol: StunProtocol.RFC5780,  // Choose STUN protocol version, RFC5780 is commonly used
     );
     ```
 
-    - `Transport.udp`：指定传输协议，`Transport.udp` 表示使用 UDP 协议，`Transport.tcp` 和 `Transport.tls` 也可以作为选择。
-    - `serverHost: "stun.hot-chilli.net"`：设置 STUN 服务器的主机地址。
-    - `serverPort: 3478`：配置与 STUN 服务器通信的端口，3478 是 STUN 协议的标准端口。
-    - `localIp: "0.0.0.0"`：自动选择本地 IP 地址，通常设置为 "0.0.0.0"。
-    - `localPort: 54320`：本地端口，供客户端用于连接。
-    - `stunProtocol: StunProtocol.RFC5780`：指定使用的 STUN 协议版本。可以选择 `RFC5780`、`RFC3489`、`RFC5389` 或混合协议 `MIX`。
+   - `Transport.udp`: Specifies the transport protocol. `Transport.udp` uses UDP, while `Transport.tcp` and `Transport.tls` are other options.
+   - `serverHost: "stun.hot-chilli.net"`: Set the STUN server's hostname.
+   - `serverPort: 3478`: Configures the port used to communicate with the STUN server. 3478 is the standard STUN port.
+   - `localIp: "0.0.0.0"`: Automatically select the local IP address, typically set to "0.0.0.0".
+   - `localPort: 54320`: The local port used by the client for the connection.
+   - `stunProtocol: StunProtocol.RFC5780`: Specifies the STUN protocol version. Options include `RFC5780`, `RFC3489`, `RFC5389`, or mixed protocols like `MIX`.
 
-2. **连接到 STUN 服务器**:
+2. **Connect to the STUN server**:
     ```dart
     await stunClient.connect();
     ```
-   通过调用 `stunClient.connect()` 方法，客户端会尝试与 STUN 服务器建立连接。
+   Calling `stunClient.connect()` will attempt to establish a connection to the STUN server.
 
-3. **创建绑定请求消息**:
+3. **Create a Binding Request Message**:
     ```dart
     StunMessage stunMessage = stunClient.createBindingStunMessage();
     ```
-   通过调用 `createBindingStunMessage`，客户端会生成一个绑定请求消息（Binding Request）。该消息用于向 STUN 服务器请求获取公网 IP 和端口映射。
+   By calling `createBindingStunMessage`, the client generates a Binding Request message. This message is used to request the public IP and port mapping from the STUN server.
 
-4. **发送请求并等待响应**:
+4. **Send the request and await the response**:
     ```dart
     StunMessage data = await stunClient.sendAndAwait(stunMessage);
     ```
-   使用 `sendAndAwait` 方法发送绑定请求消息并等待服务器响应。返回的数据是一个 `StunMessage` 对象，包含了 STUN 服务器的响应信息。
+   Use the `sendAndAwait` method to send the Binding Request message and wait for the server's response. The returned data is a `StunMessage` object containing the STUN server's response.
 
 ---
 
-## 路线图
+## Roadmap
 
 ---
 
-## 🤝 贡献
+## 🤝 Contributing
 
-我们欢迎任何形式的社区贡献！  
-请阅读 [贡献指南](CONTRIBUTING.md)，了解如何提交 Issue、请求功能或贡献代码。
-
----
-
-## 📜 许可证
-
-本项目遵循 [LGPL-3.0 License](LICENSE)。
+We welcome any form of community contribution!  
+Please read the [Contributing Guide](CONTRIBUTING.md) to learn how to submit issues, request features, or contribute code.
 
 ---
 
-## 🙏 致谢
+## 📜 License
+
+This project is licensed under the [LGPL-3.0 License](LICENSE).
+
+---
+
+## 🙏 Acknowledgements
 
 - [RFC 3489](https://datatracker.ietf.org/doc/html/rfc3489)
 - [RFC 5389](https://datatracker.ietf.org/doc/html/rfc5389)
 - [RFC 5780](https://datatracker.ietf.org/doc/html/rfc5780)
 
-## 📢 法律声明
+## 📢 Legal Notice
 
-本开源项目仅供学习和交流用途。由于可能涉及专利或版权相关内容，请在使用前确保已充分理解相关法律法规。未经授权，**请勿将本工具用于商业用途或进行任何形式的传播**。
+This open-source project is for learning and educational purposes only. Due to potential patent or copyright issues, please ensure you fully understand relevant laws and regulations before use. **Do not use this tool for commercial purposes or distribute it without authorization.**
 
-本项目的所有代码和相关内容仅供个人技术学习与参考，任何使用产生的法律责任由使用者自行承担。
+All code and related content of this project are for personal technical learning and reference only. Any legal responsibility arising from its use will be borne by the user.
 
-感谢您的理解与支持。
+Thank you for your understanding and support.
