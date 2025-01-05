@@ -1,5 +1,5 @@
 import 'package:bit_buffer/bit_buffer.dart';
-import 'package:stun/stun_message.dart';
+import 'package:stun/stun.dart';
 
 // 11.2  Message Attributes
 //

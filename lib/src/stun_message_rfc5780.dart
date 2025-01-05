@@ -1,6 +1,6 @@
 import 'package:bit_buffer/bit_buffer.dart';
-import 'package:stun/stun_message.dart';
-import 'package:stun/stun_message_rfc3489.dart' as rfc3489;
+import 'package:stun/src/stun_message_rfc3489.dart' as rfc3489;
+import 'package:stun/stun.dart';
 
 // 7.  New Attributes
 //

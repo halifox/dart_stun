@@ -1,9 +1,9 @@
 import 'dart:typed_data';
 
 import 'package:bit_buffer/bit_buffer.dart';
-import 'package:stun/stun_message_rfc3489.dart' as rfc3489;
-import 'package:stun/stun_message_rfc5389.dart' as rfc5389;
-import 'package:stun/stun_message_rfc5780.dart' as rfc5780;
+import 'package:stun/src/stun_message_rfc3489.dart' as rfc3489;
+import 'package:stun/src/stun_message_rfc5389.dart' as rfc5389;
+import 'package:stun/src/stun_message_rfc5780.dart' as rfc5780;
 
 //6.  STUN Message Structure
 //

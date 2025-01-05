@@ -2,7 +2,9 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:stun/stun_message.dart';
+import 'package:stun/stun.dart';
+
+typedef StunMessageListener = void Function(StunMessage stunMessage);
 
 enum Transport {
   udp,
@@ -59,7 +61,30 @@ abstract class StunClient {
 
   connect();
 
+  disconnect();
+
   send(StunMessage stunMessage);
+
+  onData(Uint8List data) {
+    StunMessage stunMessage = StunMessage.form(data, stunProtocol);
+    onMessage(stunMessage);
+  }
+
+  onMessage(StunMessage stunMessage) {
+    for (StunMessageListener listener in listeners) {
+      listener.call(stunMessage);
+    }
+  }
+
+  List<StunMessageListener> listeners = [];
+
+  void addOnMessageListener(StunMessageListener l) {
+    listeners.add(l);
+  }
+
+  void removeOnMessageListener(StunMessageListener l) {
+    listeners.remove(l);
+  }
 }
 
 class StunClientUdp extends StunClient {
@@ -77,15 +102,20 @@ class StunClientUdp extends StunClient {
       Datagram? incomingDatagram = socket?.receive();
       if (incomingDatagram == null) return;
       Uint8List data = incomingDatagram.data;
-      StunMessage stunMessage = StunMessage.form(data, stunProtocol);
-      print(stunMessage.toString());
+      onData(data);
     }, onDone: () {
-      socket?.close();
+      disconnect();
     }, onError: (error) {
-      socket?.close();
+      print(error);
+      disconnect();
     });
     addresses = await InternetAddress.lookup(serverHost).timeout(const Duration(seconds: 3));
     if (addresses.isEmpty) throw Exception("Failed to resolve host: $serverHost");
+  }
+
+  disconnect() {
+    socket?.close();
+    socket = null;
   }
 
   send(StunMessage stunMessage) {
@@ -103,15 +133,17 @@ class StunClientTcp extends StunClient {
   connect() async {
     socket = await Socket.connect(serverHost, serverPort);
     socket?.timeout(Duration(milliseconds: Ti));
-    socket?.listen((Uint8List data) {
-      StunMessage stunMessage = StunMessage.form(data, stunProtocol);
-      print(stunMessage.toString());
-      socket?.destroy();
-    }, onDone: () {
-      socket?.destroy();
+    socket?.listen(onData, onDone: () {
+      disconnect();
     }, onError: (error) {
-      socket?.destroy();
+      print(error);
+      disconnect();
     });
+  }
+
+  disconnect() {
+    socket?.destroy();
+    socket = null;
   }
 
   send(StunMessage stunMessage) {
@@ -127,15 +159,16 @@ class StunClientTls extends StunClient {
   connect() async {
     socket = await SecureSocket.connect(serverHost, serverPort);
     socket?.timeout(Duration(milliseconds: Ti));
-    socket?.listen((Uint8List data) {
-      StunMessage stunMessage = StunMessage.form(data, stunProtocol);
-      print(stunMessage.toString());
-      socket?.destroy();
-    }, onDone: () {
-      socket?.destroy();
+    socket?.listen(onData, onDone: () {
+      disconnect();
     }, onError: (error) {
-      socket?.destroy();
+      disconnect();
     });
+  }
+
+  disconnect() {
+    socket?.destroy();
+    socket = null;
   }
 
   send(StunMessage stunMessage) {
