@@ -1,5 +1,24 @@
+/*
+ * Copyright (C) 2025 halifox
+ *
+ * This file is part of dart_stun.
+ *
+ * dart_stun is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation, either version 3 of the License,
+ * or (at your option) any later version.
+ *
+ * dart_stun is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with dart_stun. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 import 'package:bit_buffer/bit_buffer.dart';
-import 'package:stun/stun_message.dart';
+import 'package:stun/stun.dart';
 
 // 11.2  Message Attributes
 //
@@ -78,7 +97,7 @@ import 'package:stun/stun_message.dart';
 //
 //    The length refers to the length of the value element, expressed as an
 //    unsigned integral number of bytes.
-StunAttributes? resolveAttribute(BitBufferReader reader, int type, int length, {bool isMix = false}) {
+StunAttributes? resolveAttribute(BitBufferReader reader, int type, int length) {
   switch (type) {
     case StunAttributes.TYPE_MAPPED_ADDRESS:
       return MappedAddressAttribute.form(reader, type, length);
@@ -114,8 +133,7 @@ StunAttributes? resolveAttribute(BitBufferReader reader, int type, int length, {
       return ReflectedFrom.form(reader, type, length);
 
     default:
-      if (isMix) return null;
-      return Undefined.form(reader, type, length);
+      return null;
   }
 }
 
@@ -156,6 +174,7 @@ class MappedAddressAttribute extends StunAttributes {
   MappedAddressAttribute(super.type, super.length, this.head, this.family, this.port, this.address);
 
   factory MappedAddressAttribute.form(BitBufferReader reader, int type, int length) {
+    assert(length == 8 || length == 20);
     int head = reader.getUnsignedInt(binaryDigits: 8);
     int family = reader.getUnsignedInt(binaryDigits: 8);
     int port = reader.getUnsignedInt(binaryDigits: 16);
@@ -241,8 +260,9 @@ typedef ChangedAddress = MappedAddressAttribute;
 //       server to send the Binding Response with a different port than the
 //       one the Binding Request was received on.
 class ChangeRequest extends StunAttributes {
-  bool flagChangeIp = false;
-  bool flagChangePort = false;
+  bool flagChangeIp;
+
+  bool flagChangePort;
 
   ChangeRequest(super.type, super.length, this.flagChangeIp, this.flagChangePort);
 
@@ -251,6 +271,17 @@ class ChangeRequest extends StunAttributes {
     int flagChangeIp = flag & 0x02;
     int flagChangePort = flag & 0x04;
     return ChangeRequest(type, length, flagChangeIp != 0, flagChangePort != 0);
+  }
+
+  @override
+  String toString() {
+    return """
+  ${typeDisplayName}:
+    Attribute Type: ${typeDisplayName}
+    Attribute Length: ${length}
+    flagChangeIp: ${flagChangeIp}
+    flagChangePort: ${flagChangePort}
+  """;
   }
 }
 
@@ -274,12 +305,23 @@ typedef SourceAddress = MappedAddressAttribute;
 //    MUST be a multiple of 4 (measured in bytes) in order to guarantee
 //    alignment of attributes on word boundaries.
 class Username extends StunAttributes {
-  Username(super.type, super.length);
+  String username;
+
+  Username(super.type, super.length, this.username);
 
   factory Username.form(BitBufferReader reader, int type, int length) {
-    reader.getUnsignedInt(binaryDigits: length * 8);
-    //todo
-    return Username(type, length);
+    String username = reader.getStringByUtf8(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
+    return Username(type, length, username);
+  }
+
+  @override
+  String toString() {
+    return """
+  ${typeDisplayName}:
+    Attribute Type: ${typeDisplayName}
+    Attribute Length: ${length}
+    username: ${username}
+  """;
   }
 }
 
@@ -293,12 +335,23 @@ class Username extends StunAttributes {
 //    bytes) in order to guarantee alignment of attributes on word
 //    boundaries.
 class Password extends StunAttributes {
-  Password(super.type, super.length);
+  String password;
+
+  Password(super.type, super.length, this.password);
 
   factory Password.form(BitBufferReader reader, int type, int length) {
-    reader.getUnsignedInt(binaryDigits: length * 8);
-    //todo
-    return Password(type, length);
+    String password = reader.getStringByUtf8(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
+    return Password(type, length, password);
+  }
+
+  @override
+  String toString() {
+    return """
+  ${typeDisplayName}:
+    Attribute Type: ${typeDisplayName}
+    Attribute Length: ${length}
+    password: ${password}
+  """;
   }
 }
 
@@ -314,12 +367,23 @@ class Password extends StunAttributes {
 //    MUST be the last attribute in any STUN message.  The key used as
 //    input to HMAC depends on the context.
 class MessageIntegrity extends StunAttributes {
-  MessageIntegrity(super.type, super.length);
+  List<int> key;
+
+  MessageIntegrity(super.type, super.length, this.key);
 
   factory MessageIntegrity.form(BitBufferReader reader, int type, int length) {
-    reader.getUnsignedInt(binaryDigits: length * 8);
-    //todo
-    return MessageIntegrity(type, length);
+    List<int> hmacSha1Digest = reader.getIntList(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
+    return MessageIntegrity(type, length, hmacSha1Digest);
+  }
+
+  @override
+  String toString() {
+    return """
+  ${typeDisplayName}:
+    Attribute Type: ${typeDisplayName}
+    Attribute Length: ${length}
+    key: ${key}
+  """;
   }
 }
 
@@ -389,7 +453,7 @@ class MessageIntegrity extends StunAttributes {
 //
 class ErrorCodeAttribute extends StunAttributes {
   int code;
-  int reason;
+  String reason;
 
   ErrorCodeAttribute(super.type, super.length, this.code, this.reason);
 
@@ -399,9 +463,19 @@ class ErrorCodeAttribute extends StunAttributes {
     int number = reader.getUnsignedInt(binaryDigits: 8);
     int code = clz * 100 + number;
     int lenReason = length * 8 - 21 - 3 - 8;
-    int reason = reader.getUnsignedInt(binaryDigits: 8);
-    //todo
+    String reason = reader.getStringByUtf8(lenReason, binaryDigits: 8, order: BitOrder.MSBFirst);
     return ErrorCodeAttribute(type, length, code, reason);
+  }
+
+  @override
+  String toString() {
+    return """
+  ${typeDisplayName}:
+    Attribute Type: ${typeDisplayName}
+    Attribute Length: ${length}
+    code: ${code}
+    reason: ${reason}
+  """;
   }
 }
 
@@ -436,6 +510,16 @@ class UnknownAttributes extends StunAttributes {
       types.add(type);
     }
     return UnknownAttributes(type, length, types);
+  }
+
+  @override
+  String toString() {
+    return """
+  ${typeDisplayName}:
+    Attribute Type: ${typeDisplayName}
+    Attribute Length: ${length}
+    types: ${types}
+  """;
   }
 }
 

@@ -1,6 +1,25 @@
+/*
+ * Copyright (C) 2025 halifox
+ *
+ * This file is part of dart_stun.
+ *
+ * dart_stun is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as
+ * published by the Free Software Foundation, either version 3 of the License,
+ * or (at your option) any later version.
+ *
+ * dart_stun is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with dart_stun. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 import 'package:bit_buffer/bit_buffer.dart';
-import 'package:stun/stun_message.dart';
-import 'package:stun/stun_message_rfc3489.dart' as rfc3489;
+import 'package:stun/src/stun_message_rfc3489.dart' as rfc3489;
+import 'package:stun/stun.dart';
 
 // 15.  STUN Attributes
 //
@@ -133,7 +152,7 @@ import 'package:stun/stun_message_rfc3489.dart' as rfc3489;
 //    The specification must carefully consider how clients that do not
 //    understand this error code will process it before granting the
 //    request.  See the rules in Section 7.3.4.
-StunAttributes? resolveAttribute(BitBufferReader reader, int type, int length, {bool isMix = false}) {
+StunAttributes? resolveAttribute(BitBufferReader reader, int type, int length) {
   switch (type) {
     case StunAttributes.TYPE_MAPPED_ADDRESS:
       return MappedAddressAttribute.form(reader, type, length);
@@ -170,10 +189,8 @@ StunAttributes? resolveAttribute(BitBufferReader reader, int type, int length, {
       return Fingerprint.form(reader, type, length);
 
     default:
-      if (isMix) return null;
-      return Undefined.form(reader, type, length);
+      return null;
   }
-  return null;
 }
 
 //15.1.  MAPPED-ADDRESS
@@ -337,7 +354,6 @@ typedef Username = rfc3489.Username;
 //    HMAC.  Such adjustment is necessary when attributes, such as
 //    FINGERPRINT, appear after MESSAGE-INTEGRITY.
 
-//todo
 typedef MessageIntegrity = rfc3489.MessageIntegrity;
 
 // 15.5.  FINGERPRINT
@@ -366,12 +382,23 @@ typedef MessageIntegrity = rfc3489.MessageIntegrity;
 //    message-integrity value before the CRC is computed, since the CRC is
 //    done over the value of the MESSAGE-INTEGRITY attribute as well.
 class Fingerprint extends StunAttributes {
-  Fingerprint(super.type, super.length);
+  List<int> fingerprint;
+
+  Fingerprint(super.type, super.length, this.fingerprint);
 
   factory Fingerprint.form(BitBufferReader reader, int type, int length) {
-    reader.getUnsignedInt(binaryDigits: length * 8);
-    //todo
-    return Fingerprint(type, length);
+    List<int> fingerprint = reader.getIntList(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
+    return Fingerprint(type, length, fingerprint);
+  }
+
+  @override
+  String toString() {
+    return """
+  ${typeDisplayName}:
+    Attribute Type: ${typeDisplayName}
+    Attribute Length: ${length}
+    fingerprint: ${fingerprint}
+  """;
   }
 }
 
@@ -477,12 +504,23 @@ typedef ErrorCodeAttribute = rfc3489.ErrorCodeAttribute;
 //    error responses indicates that the server wishes the client to use a
 //    long-term credential for authentication.
 class Realm extends StunAttributes {
-  Realm(super.type, super.length);
+  String realm;
+
+  Realm(super.type, super.length, this.realm);
 
   factory Realm.form(BitBufferReader reader, int type, int length) {
-    reader.getUnsignedInt(binaryDigits: length * 8);
-    //todo
-    return Realm(type, length);
+    String realm = reader.getStringByUtf8(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
+    return Realm(type, length, realm);
+  }
+
+  @override
+  String toString() {
+    return """
+  ${typeDisplayName}:
+    Attribute Type: ${typeDisplayName}
+    Attribute Length: ${length}
+    realm: ${realm}
+  """;
   }
 }
 
@@ -497,12 +535,23 @@ class Realm extends StunAttributes {
 //    It MUST be less than 128 characters (which can be as long as 763
 //    bytes).
 class Nonce extends StunAttributes {
-  Nonce(super.type, super.length);
+  String nonce;
+
+  Nonce(super.type, super.length, this.nonce);
 
   factory Nonce.form(BitBufferReader reader, int type, int length) {
-    reader.getUnsignedInt(binaryDigits: length * 8);
-    //todo
-    return Nonce(type, length);
+    String nonce = reader.getStringByUtf8(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
+    return Nonce(type, length, nonce);
+  }
+
+  @override
+  String toString() {
+    return """
+  ${typeDisplayName}:
+    Attribute Type: ${typeDisplayName}
+    Attribute Length: ${length}
+    nonce: ${nonce}
+  """;
   }
 }
 
@@ -542,13 +591,23 @@ typedef UnknownAttributes = rfc3489.UnknownAttributes;
 //    encoded sequence of less than 128 characters (which can be as long as
 //    763 bytes).
 class Software extends StunAttributes {
-  Software(super.type, super.length);
+  String description;
+
+  Software(super.type, super.length, this.description);
 
   factory Software.form(BitBufferReader reader, int type, int length) {
-    reader.getUnsignedInt(binaryDigits: 12 * 8);
-    reader.getUnsignedInt(binaryDigits: 12 * 8);
-    //todo
-    return Software(type, length);
+    String description = reader.getStringByUtf8(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
+    return Software(type, length, description);
+  }
+
+  @override
+  String toString() {
+    return """
+  ${typeDisplayName}:
+    Attribute Type: ${typeDisplayName}
+    Attribute Length: ${length}
+    description: ${description}
+  """;
   }
 }
 
