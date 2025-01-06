@@ -44,12 +44,6 @@ abstract class StunClient {
 
   int Ti = 395000;
 
-  int rto = 500; // 初始 RTO ms
-  int rc = 7; // 最大重传次数
-  int calculateSendIntervals(int rto, int rc) {
-    return rto * 1 << rc;
-  }
-
   static StunClient create({
     Transport transport = Transport.udp,
     String serverHost = "stun.hot-chilli.net",
