@@ -73,10 +73,6 @@ The following code demonstrates how to use the `StunClient` class to communicate
 
 ---
 
-## Roadmap
-
----
-
 ## 🤝 Contributing
 
 We welcome any form of community contribution!  
