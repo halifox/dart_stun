@@ -218,6 +218,12 @@ class MappedAddressAttribute extends StunAttributes {
     IP: ${addressDisplayName}
   """;
   }
+
+  @override
+  bool operator ==(Object other) => identical(this, other) || other is MappedAddressAttribute && runtimeType == other.runtimeType && port == other.port && address == other.address;
+
+  @override
+  int get hashCode => port.hashCode ^ address.hashCode;
 }
 
 // 11.2.2 RESPONSE-ADDRESS

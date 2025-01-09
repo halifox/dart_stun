@@ -153,6 +153,12 @@ class StunMessage {
 
   List<StunAttributes> attributes;
 
+  rfc5389.MappedAddressAttribute get mappedAddress => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_MAPPED_ADDRESS) as rfc5389.MappedAddressAttribute;
+
+  rfc5780.OtherAddress get otherAddress => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_OTHER_ADDRESS) as rfc5780.OtherAddress;
+
+  rfc5389.XorMappedAddressAttribute get xorMappedAddressAttribute => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_XOR_MAPPED_ADDRESS) as rfc5389.XorMappedAddressAttribute;
+
   static const int HEAD = 0x00;
 
   static const int CLASS_REQUEST = 0x000;
@@ -273,6 +279,21 @@ class StunMessage {
     writer.putUnsignedInt(length, binaryDigits: 16, order: BitOrder.MSBFirst);
     writer.putUnsignedInt(cookie, binaryDigits: 32, order: BitOrder.MSBFirst);
     writer.putUnsignedInt(transactionId, binaryDigits: 96, order: BitOrder.MSBFirst);
+    attributes.forEach((element) {
+      if (element.type == StunAttributes.TYPE_CHANGE_REQUEST) {
+        element as rfc5780.ChangeRequest;
+        writer.putUnsignedInt(element.type, binaryDigits: 16);
+        writer.putUnsignedInt(element.length, binaryDigits: 16);
+        int flag = 0;
+        if (element.flagChangeIp) {
+          flag += 4;
+        }
+        if (element.flagChangePort) {
+          flag += 2;
+        }
+        writer.putUnsignedInt(flag, binaryDigits: 32);
+      }
+    });
     Uint8List buffer = bitBuffer.toUInt8List();
     return buffer;
   }

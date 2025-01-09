@@ -79,7 +79,7 @@ abstract class StunClient {
 
   send(StunMessage stunMessage);
 
-  Future<StunMessage> sendAndAwait(StunMessage stunMessage) async {
+  Future<StunMessage> sendAndAwait(StunMessage stunMessage, {bool isAutoClose = false}) async {
     Completer<StunMessage> completer = Completer<StunMessage>();
     int transactionId = stunMessage.transactionId;
     StunMessageListener listener = (StunMessage stunMessage) {
@@ -89,8 +89,21 @@ abstract class StunClient {
     };
     addOnMessageListener(listener);
     send(stunMessage);
+
+    Future.delayed(Duration(seconds: 6), () {
+      if (!completer.isCompleted) {
+        removeOnMessageListener(listener);
+        if (isAutoClose) {
+          disconnect();
+        }
+        completer.completeError(TimeoutException("Response timed out after 3 seconds"));
+      }
+    });
     StunMessage message = await completer.future;
     removeOnMessageListener(listener);
+    if (isAutoClose) {
+      disconnect();
+    }
     return message;
   }
 
@@ -123,21 +136,19 @@ class StunClientUdp extends StunClient {
 
   StunClientUdp(super.transport, super.serverHost, super.serverPort, super.localIp, super.localPort, super.stunProtocol);
 
+  _onData(RawSocketEvent socketEvent) {
+    if (socketEvent != RawSocketEvent.read) return;
+    Datagram? incomingDatagram = socket?.receive();
+    if (incomingDatagram == null) return;
+    Uint8List data = incomingDatagram.data;
+    onData(data);
+  }
+
   connect() async {
+    if (socket != null) return;
     socket = await RawDatagramSocket.bind(InternetAddress(localIp), localPort);
     socket?.timeout(Duration(milliseconds: Ti));
-    socket?.listen((RawSocketEvent socketEvent) {
-      if (socketEvent != RawSocketEvent.read) return;
-      Datagram? incomingDatagram = socket?.receive();
-      if (incomingDatagram == null) return;
-      Uint8List data = incomingDatagram.data;
-      onData(data);
-    }, onDone: () {
-      disconnect();
-    }, onError: (error) {
-      print(error);
-      disconnect();
-    });
+    socket?.listen(_onData);
     addresses = await InternetAddress.lookup(serverHost).timeout(const Duration(seconds: 3));
     if (addresses.isEmpty) throw Exception("Failed to resolve host: $serverHost");
   }
@@ -147,7 +158,8 @@ class StunClientUdp extends StunClient {
     socket = null;
   }
 
-  send(StunMessage stunMessage) {
+  send(StunMessage stunMessage) async {
+    await connect();
     if (addresses.isEmpty) throw Exception("Failed to resolve host: $serverHost");
     InternetAddress address = addresses[0];
     socket?.send(stunMessage.toUInt8List(), address, serverPort);
@@ -162,12 +174,7 @@ class StunClientTcp extends StunClient {
   connect() async {
     socket = await Socket.connect(serverHost, serverPort);
     socket?.timeout(Duration(milliseconds: Ti));
-    socket?.listen(onData, onDone: () {
-      disconnect();
-    }, onError: (error) {
-      print(error);
-      disconnect();
-    });
+    socket?.listen(onData);
   }
 
   disconnect() {
@@ -175,7 +182,8 @@ class StunClientTcp extends StunClient {
     socket = null;
   }
 
-  send(StunMessage stunMessage) {
+  send(StunMessage stunMessage) async {
+    await connect();
     socket?.add(stunMessage.toUInt8List());
   }
 }
@@ -188,11 +196,7 @@ class StunClientTls extends StunClient {
   connect() async {
     socket = await SecureSocket.connect(serverHost, serverPort);
     socket?.timeout(Duration(milliseconds: Ti));
-    socket?.listen(onData, onDone: () {
-      disconnect();
-    }, onError: (error) {
-      disconnect();
-    });
+    socket?.listen(onData);
   }
 
   disconnect() {
@@ -200,7 +204,8 @@ class StunClientTls extends StunClient {
     socket = null;
   }
 
-  send(StunMessage stunMessage) {
+  send(StunMessage stunMessage) async {
+    await connect();
     socket?.add(stunMessage.toUInt8List());
   }
 }
