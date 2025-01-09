@@ -21,16 +21,16 @@ import 'package:stun/stun.dart';
 import 'package:test/test.dart';
 
 void main() {
+
   test("udp", () async {
     StunClient stunClient = StunClient.create(
       transport: Transport.udp,
       serverHost: "stun.hot-chilli.net",
       serverPort: 3478,
       localIp: "0.0.0.0",
-      localPort: 54320,
-      stunProtocol: StunProtocol.MIX,
+      localPort: 54321,
+      stunProtocol: StunProtocol.RFC5780,
     );
-    await stunClient.connect();
     StunMessage stunMessage = stunClient.createBindingStunMessage();
     StunMessage data = await stunClient.sendAndAwait(stunMessage);
     print(data);
@@ -43,9 +43,8 @@ void main() {
       serverPort: 3478,
       localIp: "0.0.0.0",
       localPort: 54320,
-      stunProtocol: StunProtocol.MIX,
+      stunProtocol: StunProtocol.RFC5780,
     );
-    await stunClient.connect();
     StunMessage stunMessage = stunClient.createBindingStunMessage();
     StunMessage data = await stunClient.sendAndAwait(stunMessage);
     print(data);
@@ -58,9 +57,8 @@ void main() {
       serverPort: 3478,
       localIp: "0.0.0.0",
       localPort: 54320,
-      stunProtocol: StunProtocol.MIX,
+      stunProtocol: StunProtocol.RFC5780,
     );
-    await stunClient.connect();
     StunMessage stunMessage = stunClient.createBindingStunMessage();
     StunMessage data = await stunClient.sendAndAwait(stunMessage);
     print(data);

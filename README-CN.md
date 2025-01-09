@@ -23,51 +23,138 @@ dependencies:
   stun:
     git:
       url: https://github.com/halifox/dart_stun
-      ref: 1.0.0
+      ref: 2.0.0
 ```
 
 ---
 
 ## 🛠️ 使用方法
 
-这段代码演示了如何使用 `StunClient` 类与 STUN 服务器进行通信。STUN（Session Traversal Utilities for NAT）协议被广泛用于帮助 NAT（网络地址转换）后的设备建立直接的 UDP 或 TCP 连接。
+### 创建 STUN 客户端
+使用 `StunClient.create` 方法创建客户端实例。
 
-1. **创建 STUN 客户端**:
-    ```dart
-    StunClient stunClient = StunClient.create(
-      transport: Transport.udp,  // 选择传输协议：UDP, TCP, TLS等
-      serverHost: "stun.hot-chilli.net",  // STUN 服务器的主机名或IP地址
-      serverPort: 3478,  // STUN 服务器的端口（标准STUN端口是3478）
-      localIp: "0.0.0.0",  // 本地IP地址，通常可以设置为"0.0.0.0"，表示自动选择
-      localPort: 54320,  // 本地端口，客户端连接时会使用该端口
-      stunProtocol: StunProtocol.RFC5780,  // 选择STUN协议的版本，RFC5780是最常用的一个
-    );
-    ```
+```dart
+StunClient client = StunClient.create(
+  transport: Transport.udp,          // 传输协议：udp、tcp 或 tls
+  serverHost: "stun.hot-chilli.net", // STUN 服务器地址
+  serverPort: 3478,                  // STUN 服务器端口
+  localIp: "0.0.0.0",               // 本地 IP 地址
+  localPort: 54320,                 // 本地端口
+  stunProtocol: StunProtocol.RFC5780 // 使用的 STUN 协议版本
+);
+```
 
-    - `Transport.udp`：指定传输协议，`Transport.udp` 表示使用 UDP 协议，`Transport.tcp` 和 `Transport.tls` 也可以作为选择。
-    - `serverHost: "stun.hot-chilli.net"`：设置 STUN 服务器的主机地址。
-    - `serverPort: 3478`：配置与 STUN 服务器通信的端口，3478 是 STUN 协议的标准端口。
-    - `localIp: "0.0.0.0"`：自动选择本地 IP 地址，通常设置为 "0.0.0.0"。
-    - `localPort: 54320`：本地端口，供客户端用于连接。
-    - `stunProtocol: StunProtocol.RFC5780`：指定使用的 STUN 协议版本。可以选择 `RFC5780`、`RFC3489`、`RFC5389` 或混合协议 `MIX`。
+### 创建绑定请求（Binding Request）
+使用 `createBindingStunMessage` 方法生成绑定请求消息。
 
-2. **连接到 STUN 服务器**:
-    ```dart
-    await stunClient.connect();
-    ```
-   通过调用 `stunClient.connect()` 方法，客户端会尝试与 STUN 服务器建立连接。
+```dart
+StunMessage bindingRequest = client.createBindingStunMessage();
+```
 
-3. **创建绑定请求消息**:
-    ```dart
-    StunMessage stunMessage = stunClient.createBindingStunMessage();
-    ```
-   通过调用 `createBindingStunMessage`，客户端会生成一个绑定请求消息（Binding Request）。该消息用于向 STUN 服务器请求获取公网 IP 和端口映射。
+### 创建地址变更请求（Change Request）
+使用 `createChangeStunMessage` 方法生成地址变更请求消息。
 
-4. **发送请求并等待响应**:
-    ```dart
-    StunMessage data = await stunClient.sendAndAwait(stunMessage);
-    ```
-   使用 `sendAndAwait` 方法发送绑定请求消息并等待服务器响应。返回的数据是一个 `StunMessage` 对象，包含了 STUN 服务器的响应信息。
+```dart
+StunMessage changeRequest = client.createChangeStunMessage(
+  flagChangeIp: true,   // 是否请求变更 IP
+  flagChangePort: true  // 是否请求变更端口
+);
+```
+
+### 发送请求并等待响应
+使用 `sendAndAwait` 方法发送 STUN 消息并等待响应。
+
+```dart
+try {
+  StunMessage response = await client.sendAndAwait(bindingRequest, isAutoClose: true);
+  // 处理响应
+} catch (e) {
+  print("请求超时或发生错误: $e");
+}
+```
+
+### 直接发送 STUN 消息
+使用 `send` 方法直接发送 STUN 消息。
+
+```dart
+await client.send(bindingRequest);
+```
+
+### 消息监听
+通过添加和移除消息监听器，可以处理收到的 STUN 消息。
+
+### 添加消息监听器
+使用 `addOnMessageListener` 方法注册消息监听器。
+
+```dart
+client.addOnMessageListener((StunMessage message) {
+  print("收到消息: \$message");
+});
+```
+
+### 移除消息监听器
+使用 `removeOnMessageListener` 方法移除已注册的监听器。
+
+```dart
+client.removeOnMessageListener(listener);
+```
+
+### 超时处理
+`sendAndAwait` 方法默认超时时间为 6 秒，超时将抛出 `TimeoutException`。
+
+### 注意事项
+- 发送消息前需确保 STUN 服务器地址已成功解析。
+- `isAutoClose` 参数设为 `true` 时，响应后将自动断开连接。
+- 事务 ID（Transaction ID）需随机生成，确保唯一性。
+
+### 错误处理
+- 如果 STUN 服务器无法解析，`send` 方法将抛出异常。
+- 响应超时时会抛出 `TimeoutException`。
+
+## 🛠️ NatChecker 使用方法(rfc5780)
+
+### 创建实例
+
+使用 `NatChecker` 构造函数创建实例，可以指定以下可选参数：
+
+- `serverHost`：STUN 服务器主机名（默认值: `"stun.hot-chilli.net"`）。
+- `serverPort`：STUN 服务器端口（默认值: `3478`）。
+- `localIp`：本地监听的 IP 地址（默认值: `"0.0.0.0"`）。
+- `localPort`：本地监听的端口（默认值: `54320`）。
+
+示例代码：
+
+```dart
+import 'package:stun/src/nat_checker_rfc_5780.dart' as rfc5780;
+
+void main() async {
+   rfc5780.NatChecker checker = rfc5780.NatChecker(
+    serverHost: "stun.l.google.com",
+    serverPort: 19302,
+    localIp: "0.0.0.0",
+    localPort: 12345,
+  );
+
+  final (mappingBehavior, filteringBehavior) = await checker.check();
+
+  print('NAT 映射行为: $mappingBehavior');
+  print('NAT 过滤行为: $filteringBehavior');
+}
+```
+
+### 检测 NAT 行为
+
+调用 `check` 方法返回 NAT 的映射行为和过滤行为：
+
+- `NatMappingBehavior`：表示 NAT 的映射特性（如是否对外部地址暴露不同端口）。
+- `NatFilteringBehavior`：表示 NAT 的过滤特性（如是否允许外部地址通过任意端口访问）。
+
+示例返回：
+
+```text
+NAT 映射行为: AddressDependentMapping
+NAT 过滤行为: AddressAndPortDependentFiltering
+```
 
 ---
 
@@ -86,9 +173,17 @@ dependencies:
 
 ## 🙏 致谢
 
+- [P2P技术详解(一)：NAT详解——详细原理、P2P简介](http://www.52im.net/thread-50-1-1.html)
+- [P2P技术详解(二)：P2P中的NAT穿越(打洞)方案详解](http://www.52im.net/thread-542-1-1.html)
+- [P2P技术详解(三)：P2P中的NAT穿越(打洞)方案详解(进阶分析篇)](http://www.52im.net/thread-2872-1-1.html)
+- [Netmanias 对于 RFC 3489 与 STUN (RFC 5389/5780) 的对比解读](https://netmanias.com/en/post/techdocs/6065/nat-network-protocol/stun-rfc-3489-vs-stun-rfc-5389-5780)
 - [RFC 3489](https://datatracker.ietf.org/doc/html/rfc3489)
 - [RFC 5389](https://datatracker.ietf.org/doc/html/rfc5389)
 - [RFC 5780](https://datatracker.ietf.org/doc/html/rfc5780)
+- [RFC 3489 中文](https://rfc2cn.com/rfc3489.html)
+- [RFC 5389 中文](https://rfc2cn.com/rfc5389.html)
+- [RFC 5780 中文](https://rfc2cn.com/rfc5780.html)
+
 
 ## 📢 法律声明
 

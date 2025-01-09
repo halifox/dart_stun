@@ -152,45 +152,27 @@ import 'package:stun/stun.dart';
 //    The specification must carefully consider how clients that do not
 //    understand this error code will process it before granting the
 //    request.  See the rules in Section 7.3.4.
+
+var types = {
+  StunAttributes.TYPE_MAPPED_ADDRESS: () => MappedAddressAttribute(),
+  StunAttributes.TYPE_USERNAME: () => Username(),
+  StunAttributes.TYPE_MESSAGE_INTEGRITY: () => MessageIntegrity(),
+  StunAttributes.TYPE_ERROR_CODE: () => ErrorCode(),
+  StunAttributes.TYPE_UNKNOWN_ATTRIBUTES: () => UnknownAttributes(),
+  StunAttributes.TYPE_REALM: () => Realm(),
+  StunAttributes.TYPE_NONCE: () => Nonce(),
+  StunAttributes.TYPE_XOR_MAPPED_ADDRESS: () => XorMappedAddressAttribute(),
+  StunAttributes.TYPE_SOFTWARE: () => Software(),
+  StunAttributes.TYPE_ALTERNATE_SERVER: () => AlternateServer(),
+  StunAttributes.TYPE_FINGERPRINT: () => Fingerprint(),
+};
+
 StunAttributes? resolveAttribute(BitBufferReader reader, int type, int length) {
-  switch (type) {
-    case StunAttributes.TYPE_MAPPED_ADDRESS:
-      return MappedAddressAttribute.form(reader, type, length);
-
-    case StunAttributes.TYPE_USERNAME:
-      return Username.form(reader, type, length);
-
-    case StunAttributes.TYPE_MESSAGE_INTEGRITY:
-      return MessageIntegrity.form(reader, type, length);
-
-    case StunAttributes.TYPE_ERROR_CODE:
-      return ErrorCodeAttribute.form(reader, type, length);
-
-    case StunAttributes.TYPE_UNKNOWN_ATTRIBUTES:
-      return UnknownAttributes.form(reader, type, length);
-
-    case StunAttributes.TYPE_REALM:
-      return Realm.form(reader, type, length);
-
-    case StunAttributes.TYPE_NONCE:
-      return Nonce.form(reader, type, length);
-
-    case StunAttributes.TYPE_XOR_MAPPED_ADDRESS:
-      return XorMappedAddressAttribute.form(reader, type, length);
-
-    //Comprehension-optional range (0x8000-0xFFFF)
-    case StunAttributes.TYPE_SOFTWARE:
-      return Software.form(reader, type, length);
-
-    case StunAttributes.TYPE_ALTERNATE_SERVER:
-      return AlternateServer.form(reader, type, length);
-
-    case StunAttributes.TYPE_FINGERPRINT:
-      return Fingerprint.form(reader, type, length);
-
-    default:
-      return null;
-  }
+  var creator = types[type];
+  if (creator == null) return null;
+  StunAttributes attribute = creator();
+  attribute.fromBuffer(reader, type, length);
+  return attribute;
 }
 
 //15.1.  MAPPED-ADDRESS
@@ -276,7 +258,10 @@ typedef MappedAddressAttribute = rfc3489.MappedAddressAttribute;
 //    but misguided attempt at providing a generic ALG function.  Such
 //    behavior interferes with the operation of STUN and also causes
 //    failure of STUN's message-integrity checking.
-typedef XorMappedAddressAttribute = MappedAddressAttribute;
+class XorMappedAddressAttribute extends AddressAttribute {
+  @override
+  int type = StunAttributes.TYPE_XOR_MAPPED_ADDRESS;
+}
 
 // 15.3.  USERNAME
 //
@@ -381,25 +366,11 @@ typedef MessageIntegrity = rfc3489.MessageIntegrity;
 //    attribute is also present, then it must be present with the correct
 //    message-integrity value before the CRC is computed, since the CRC is
 //    done over the value of the MESSAGE-INTEGRITY attribute as well.
-class Fingerprint extends StunAttributes {
-  List<int> fingerprint;
-
-  Fingerprint(super.type, super.length, this.fingerprint);
-
-  factory Fingerprint.form(BitBufferReader reader, int type, int length) {
-    List<int> fingerprint = reader.getIntList(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
-    return Fingerprint(type, length, fingerprint);
-  }
-
+class Fingerprint extends StunUInt8ListAttributes {
   @override
-  String toString() {
-    return """
-  ${typeDisplayName}:
-    Attribute Type: ${typeDisplayName}
-    Attribute Length: ${length}
-    fingerprint: ${fingerprint}
-  """;
-  }
+  int type = StunAttributes.TYPE_FINGERPRINT;
+
+  List<int> get fingerprint => value;
 }
 
 // 15.6.  ERROR-CODE
@@ -486,7 +457,7 @@ class Fingerprint extends StunAttributes {
 // Rosenberg, et al.           Standards Track                    [Page 37]
 //
 // RFC 5389                          STUN                      October 2008
-typedef ErrorCodeAttribute = rfc3489.ErrorCodeAttribute;
+typedef ErrorCode = rfc3489.ErrorCode;
 
 // 15.7.  REALM
 //
@@ -503,15 +474,11 @@ typedef ErrorCodeAttribute = rfc3489.ErrorCodeAttribute;
 //    credentials are being used for authentication.  Presence in certain
 //    error responses indicates that the server wishes the client to use a
 //    long-term credential for authentication.
-class Realm extends StunAttributes {
-  String realm;
+class Realm extends StunTextAttributes {
+  @override
+  int type = StunAttributes.TYPE_REALM;
 
-  Realm(super.type, super.length, this.realm);
-
-  factory Realm.form(BitBufferReader reader, int type, int length) {
-    String realm = reader.getStringByUtf8(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
-    return Realm(type, length, realm);
-  }
+  String get realm => value;
 
   @override
   String toString() {
@@ -534,15 +501,11 @@ class Realm extends StunAttributes {
 //
 //    It MUST be less than 128 characters (which can be as long as 763
 //    bytes).
-class Nonce extends StunAttributes {
-  String nonce;
+class Nonce extends StunTextAttributes {
+  @override
+  int type = StunAttributes.TYPE_NONCE;
 
-  Nonce(super.type, super.length, this.nonce);
-
-  factory Nonce.form(BitBufferReader reader, int type, int length) {
-    String nonce = reader.getStringByUtf8(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
-    return Nonce(type, length, nonce);
-  }
+  String get nonce => value;
 
   @override
   String toString() {
@@ -590,15 +553,11 @@ typedef UnknownAttributes = rfc3489.UnknownAttributes;
 //    value of SOFTWARE is variable length.  It MUST be a UTF-8 [RFC3629]
 //    encoded sequence of less than 128 characters (which can be as long as
 //    763 bytes).
-class Software extends StunAttributes {
-  String description;
+class Software extends StunTextAttributes {
+  @override
+  int type = StunAttributes.TYPE_SOFTWARE;
 
-  Software(super.type, super.length, this.description);
-
-  factory Software.form(BitBufferReader reader, int type, int length) {
-    String description = reader.getStringByUtf8(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
-    return Software(type, length, description);
-  }
+  String get description => value;
 
   @override
   String toString() {
@@ -619,4 +578,7 @@ class Software extends StunAttributes {
 //    It is encoded in the same way as MAPPED-ADDRESS, and thus refers to a
 //    single server by IP address.  The IP address family MUST be identical
 //    to that of the source IP address of the request.
-typedef AlternateServer = MappedAddressAttribute;
+class AlternateServer extends AddressAttribute {
+  @override
+  int type = StunAttributes.TYPE_ALTERNATE_SERVER;
+}

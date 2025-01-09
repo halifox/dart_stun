@@ -22,6 +22,7 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:stun/src/stun_message_rfc3489.dart';
 import 'package:stun/stun.dart';
 
 typedef StunMessageListener = void Function(StunMessage stunMessage);
@@ -42,7 +43,9 @@ abstract class StunClient {
 
   StunClient(this.transport, this.serverHost, this.serverPort, this.localIp, this.localPort, this.stunProtocol);
 
-  int Ti = 395000;
+  int connectTimeoutMilliseconds = 395000;
+  int lookupTimeoutMilliseconds = 3 * 10000;
+  int messageListenerTimeoutMilliseconds = 6 * 10000;
 
   static StunClient create({
     Transport transport = Transport.udp,
@@ -50,7 +53,7 @@ abstract class StunClient {
     int serverPort = 3478,
     String localIp = "0.0.0.0",
     int localPort = 54320,
-    StunProtocol stunProtocol = StunProtocol.MIX,
+    StunProtocol stunProtocol = StunProtocol.RFC5780,
   }) {
     return switch (transport) {
       Transport.udp => StunClientUdp(transport, serverHost, serverPort, localIp, localPort, stunProtocol),
@@ -60,7 +63,7 @@ abstract class StunClient {
   }
 
   StunMessage createBindingStunMessage() {
-    StunMessage stunMessage = StunMessage(
+    return StunMessage.create(
       StunMessage.HEAD,
       StunMessage.METHOD_BINDING | StunMessage.CLASS_REQUEST,
       0,
@@ -70,7 +73,21 @@ abstract class StunClient {
       [],
       stunProtocol,
     );
-    return stunMessage;
+  }
+
+  StunMessage createChangeStunMessage({bool flagChangeIp = true, bool flagChangePort = true}) {
+    return StunMessage.create(
+      StunMessage.HEAD,
+      StunMessage.METHOD_BINDING | StunMessage.CLASS_REQUEST,
+      0,
+      StunMessage.MAGIC_COOKIE,
+      //todo: the transaction ID MUST be uniformly and randomly chosen from the interval 0 .. 2**96-1
+      Random.secure().nextInt(2 << 32 - 1),
+      [
+        ChangeAddress(flagChangeIp: flagChangeIp, flagChangePort: flagChangePort),
+      ],
+      stunProtocol,
+    );
   }
 
   connect();
@@ -79,7 +96,7 @@ abstract class StunClient {
 
   send(StunMessage stunMessage);
 
-  Future<StunMessage> sendAndAwait(StunMessage stunMessage) async {
+  Future<StunMessage> sendAndAwait(StunMessage stunMessage, {bool isAutoClose = false}) async {
     Completer<StunMessage> completer = Completer<StunMessage>();
     int transactionId = stunMessage.transactionId;
     StunMessageListener listener = (StunMessage stunMessage) {
@@ -89,8 +106,21 @@ abstract class StunClient {
     };
     addOnMessageListener(listener);
     send(stunMessage);
+
+    Future.delayed(Duration(milliseconds: messageListenerTimeoutMilliseconds), () {
+      if (!completer.isCompleted) {
+        removeOnMessageListener(listener);
+        if (isAutoClose) {
+          disconnect();
+        }
+        completer.completeError(TimeoutException("Response timed out after 3 seconds"));
+      }
+    });
     StunMessage message = await completer.future;
     removeOnMessageListener(listener);
+    if (isAutoClose) {
+      disconnect();
+    }
     return message;
   }
 
@@ -123,22 +153,19 @@ class StunClientUdp extends StunClient {
 
   StunClientUdp(super.transport, super.serverHost, super.serverPort, super.localIp, super.localPort, super.stunProtocol);
 
+  _onData(RawSocketEvent socketEvent) {
+    if (socketEvent != RawSocketEvent.read) return;
+    Datagram? incomingDatagram = socket?.receive();
+    if (incomingDatagram == null) return;
+    Uint8List data = incomingDatagram.data;
+    onData(data);
+  }
+
   connect() async {
-    socket = await RawDatagramSocket.bind(InternetAddress(localIp), localPort);
-    socket?.timeout(Duration(milliseconds: Ti));
-    socket?.listen((RawSocketEvent socketEvent) {
-      if (socketEvent != RawSocketEvent.read) return;
-      Datagram? incomingDatagram = socket?.receive();
-      if (incomingDatagram == null) return;
-      Uint8List data = incomingDatagram.data;
-      onData(data);
-    }, onDone: () {
-      disconnect();
-    }, onError: (error) {
-      print(error);
-      disconnect();
-    });
-    addresses = await InternetAddress.lookup(serverHost).timeout(const Duration(seconds: 3));
+    if (socket != null) return;
+    socket = await RawDatagramSocket.bind(InternetAddress(localIp), localPort, reusePort: true);
+    socket?.listen(_onData);
+    addresses = await InternetAddress.lookup(serverHost).timeout(Duration(milliseconds: lookupTimeoutMilliseconds));
     if (addresses.isEmpty) throw Exception("Failed to resolve host: $serverHost");
   }
 
@@ -147,7 +174,8 @@ class StunClientUdp extends StunClient {
     socket = null;
   }
 
-  send(StunMessage stunMessage) {
+  send(StunMessage stunMessage) async {
+    await connect();
     if (addresses.isEmpty) throw Exception("Failed to resolve host: $serverHost");
     InternetAddress address = addresses[0];
     socket?.send(stunMessage.toUInt8List(), address, serverPort);
@@ -160,14 +188,8 @@ class StunClientTcp extends StunClient {
   StunClientTcp(super.transport, super.serverHost, super.serverPort, super.localIp, super.localPort, super.stunProtocol);
 
   connect() async {
-    socket = await Socket.connect(serverHost, serverPort);
-    socket?.timeout(Duration(milliseconds: Ti));
-    socket?.listen(onData, onDone: () {
-      disconnect();
-    }, onError: (error) {
-      print(error);
-      disconnect();
-    });
+    socket = await Socket.connect(serverHost, serverPort, timeout: Duration(milliseconds: connectTimeoutMilliseconds));
+    socket?.listen(onData);
   }
 
   disconnect() {
@@ -175,7 +197,8 @@ class StunClientTcp extends StunClient {
     socket = null;
   }
 
-  send(StunMessage stunMessage) {
+  send(StunMessage stunMessage) async {
+    await connect();
     socket?.add(stunMessage.toUInt8List());
   }
 }
@@ -186,13 +209,8 @@ class StunClientTls extends StunClient {
   StunClientTls(super.transport, super.serverHost, super.serverPort, super.localIp, super.localPort, super.stunProtocol);
 
   connect() async {
-    socket = await SecureSocket.connect(serverHost, serverPort);
-    socket?.timeout(Duration(milliseconds: Ti));
-    socket?.listen(onData, onDone: () {
-      disconnect();
-    }, onError: (error) {
-      disconnect();
-    });
+    socket = await SecureSocket.connect(serverHost, serverPort, timeout: Duration(milliseconds: connectTimeoutMilliseconds));
+    socket?.listen(onData);
   }
 
   disconnect() {
@@ -200,7 +218,8 @@ class StunClientTls extends StunClient {
     socket = null;
   }
 
-  send(StunMessage stunMessage) {
+  send(StunMessage stunMessage) async {
+    await connect();
     socket?.add(stunMessage.toUInt8List());
   }
 }

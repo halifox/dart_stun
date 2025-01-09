@@ -140,16 +140,90 @@ enum StunProtocol {
   RFC3489,
   RFC5389,
   RFC5780,
-  MIX,
 }
 
-class StunMessage {
+class StunMessageRfc5780 extends StunMessageRfc5389 {
+  @override
+  StunProtocol stunProtocol = StunProtocol.RFC5780;
+
+  StunMessageRfc5780(super.head, super.type, super.length, super.cookie, super.transactionId, super.attributes);
+
+  get changeRequest => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_CHANGE_REQUEST) as rfc5780.ChangeRequest;
+
+  get padding => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_PADDING) as rfc5780.Padding;
+
+  get responsePort => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_RESPONSE_PORT) as rfc5780.ResponsePort;
+
+  get responseOrigin => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_RESPONSE_ORIGIN) as rfc5780.ResponseOrigin;
+
+  get otherAddress => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_OTHER_ADDRESS) as rfc5780.OtherAddress;
+}
+
+class StunMessageRfc5389 extends StunMessage {
+  @override
+  StunProtocol stunProtocol = StunProtocol.RFC5389;
+
+  StunMessageRfc5389(super.head, super.type, super.length, super.cookie, super.transactionId, super.attributes);
+
+  get mappedAddressAttribute => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_MAPPED_ADDRESS) as rfc5389.MappedAddressAttribute;
+
+  get username => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_USERNAME) as rfc5389.Username;
+
+  get messageIntegrity => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_MESSAGE_INTEGRITY) as rfc5389.MessageIntegrity;
+
+  get errorCode => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_ERROR_CODE) as rfc5389.ErrorCode;
+
+  get unknownAttributes => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_UNKNOWN_ATTRIBUTES) as rfc5389.UnknownAttributes;
+
+  get realm => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_REALM) as rfc5389.Realm;
+
+  get nonce => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_NONCE) as rfc5389.Nonce;
+
+  get xorMappedAddressAttribute => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_XOR_MAPPED_ADDRESS) as rfc5389.XorMappedAddressAttribute;
+
+  get software => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_SOFTWARE) as rfc5389.Software;
+
+  get alternateServer => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_ALTERNATE_SERVER) as rfc5389.AlternateServer;
+
+  get fingerprint => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_FINGERPRINT) as rfc5389.Fingerprint;
+}
+
+class StunMessageRfc3489 extends StunMessage {
+  @override
+  StunProtocol stunProtocol = StunProtocol.RFC3489;
+
+  StunMessageRfc3489(super.head, super.type, super.length, super.cookie, super.transactionId, super.attributes);
+
+  get mappedAddressAttribute => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_MAPPED_ADDRESS) as rfc3489.MappedAddressAttribute;
+
+  get responseAddress => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_RESPONSE_ADDRESS) as rfc3489.ResponseAddress;
+
+  get changeAddress => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_CHANGE_ADDRESS) as rfc3489.ChangeAddress;
+
+  get sourceAddress => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_SOURCE_ADDRESS) as rfc3489.SourceAddress;
+
+  get changedAddress => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_CHANGED_ADDRESS) as rfc3489.ChangedAddress;
+
+  get username => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_USERNAME) as rfc3489.Username;
+
+  get password => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_PASSWORD) as rfc3489.Password;
+
+  get messageIntegrity => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_MESSAGE_INTEGRITY) as rfc3489.MessageIntegrity;
+
+  get errorCode => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_ERROR_CODE) as rfc3489.ErrorCode;
+
+  get unknownAttributes => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_UNKNOWN_ATTRIBUTES) as rfc3489.UnknownAttributes;
+
+  get reflectedFrom => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_REFLECTED_FROM) as rfc3489.ReflectedFrom;
+}
+
+abstract class StunMessage {
   int head;
   int type;
   int length;
   int cookie;
   int transactionId;
-  StunProtocol stunProtocol;
+  abstract StunProtocol stunProtocol;
 
   List<StunAttributes> attributes;
 
@@ -185,7 +259,18 @@ class StunMessage {
 
   static const int MAGIC_COOKIE = 0x2112A442;
 
-  StunMessage(this.head, this.type, this.length, this.cookie, this.transactionId, this.attributes, this.stunProtocol);
+  StunMessage(this.head, this.type, this.length, this.cookie, this.transactionId, this.attributes);
+
+  factory StunMessage.create(int head, int type, int length, int cookie, int transactionId, List<StunAttributes> attributes, StunProtocol stunProtocol) {
+    switch (stunProtocol) {
+      case StunProtocol.RFC3489:
+        return StunMessageRfc3489(head, type, length, cookie, transactionId, attributes);
+      case StunProtocol.RFC5389:
+        return StunMessageRfc5389(head, type, length, cookie, transactionId, attributes);
+      case StunProtocol.RFC5780:
+        return StunMessageRfc5780(head, type, length, cookie, transactionId, attributes);
+    }
+  }
 
   factory StunMessage.form(Uint8List data, StunProtocol stunProtocol) {
     //if error: drop this
@@ -209,7 +294,7 @@ class StunMessage {
             int transactionId = reader.getUnsignedInt(binaryDigits: 96);
             List<StunAttributes> attributes = resolveAttributes(reader, stunProtocol);
             //todo assert FINGERPRINT
-            return StunMessage(head, type, length, cookie, transactionId, attributes, stunProtocol);
+            return StunMessage.create(head, type, length, cookie, transactionId, attributes, stunProtocol);
           default:
             throw Exception();
         }
@@ -251,15 +336,6 @@ class StunMessage {
           } else {
             reader.getIntList(attributeLength * 8);
           }
-        case StunProtocol.MIX:
-          StunAttributes? attribute = rfc5780.resolveAttribute(reader, attributeType, attributeLength) ?? //
-              rfc5389.resolveAttribute(reader, attributeType, attributeLength) ?? //
-              rfc3489.resolveAttribute(reader, attributeType, attributeLength);
-          if (attribute != null) {
-            attributes.add(attribute);
-          } else {
-            reader.getIntList(attributeLength * 8);
-          }
       }
     }
     return attributes;
@@ -273,6 +349,9 @@ class StunMessage {
     writer.putUnsignedInt(length, binaryDigits: 16, order: BitOrder.MSBFirst);
     writer.putUnsignedInt(cookie, binaryDigits: 32, order: BitOrder.MSBFirst);
     writer.putUnsignedInt(transactionId, binaryDigits: 96, order: BitOrder.MSBFirst);
+    attributes.forEach((attribute) {
+      writer.putIntList(attribute.toBuffer());
+    });
     Uint8List buffer = bitBuffer.toUInt8List();
     return buffer;
   }
@@ -288,7 +367,6 @@ class StunMessage {
     for (StunAttributes attribute in attributes) {
       buffer.writeln(attribute.toString());
     }
-
     return buffer.toString();
   }
 }
@@ -346,12 +424,19 @@ abstract class StunAttributes {
     TYPE_OTHER_ADDRESS: "OTHER-ADDRESS",
   };
 
-  int type;
-  int length;
+  abstract int type;
 
-  StunAttributes(this.type, this.length);
+  abstract int length;
 
-  String? get typeDisplayName => "${TYPE_STRINGS[type] ?? "Undefined"}(0x${type.toRadixString(16).padLeft(4, "0")})";
+  String? get typeDisplayName => "${TYPE_STRINGS[type] ?? "Undefined"}(0x${type.toRadixString(16).padLeft(4, "0")})"; //todo
+
+  fromBuffer(BitBufferReader reader, int type, int length) {
+    assert(type == this.type);
+    // this.type = type;
+    // this.length = length;
+  }
+
+  Uint8List toBuffer();
 
   @override
   String toString() {
@@ -361,4 +446,171 @@ abstract class StunAttributes {
     Attribute Length: ${length}
   """;
   }
+
+  @override
+  bool operator ==(Object other) => identical(this, other) || other is StunAttributes && runtimeType == other.runtimeType && type == other.type;
+
+  @override
+  int get hashCode => type.hashCode;
+}
+
+abstract class StunUInt8ListAttributes extends StunAttributes {
+  @override
+  late int length = value.length;
+
+  late List<int> value;
+
+  @override
+  fromBuffer(BitBufferReader reader, int type, int length) {
+    super.fromBuffer(reader, type, length);
+    this.value = reader.getIntList(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
+  }
+
+  @override
+  Uint8List toBuffer() {
+    BitBuffer bitBuffer = BitBuffer();
+    BitBufferWriter writer = bitBuffer.writer();
+    writer.putUnsignedInt(type, binaryDigits: 16);
+    writer.putUnsignedInt(length, binaryDigits: 16);
+    writer.putIntList(value, binaryDigits: 8, order: BitOrder.MSBFirst);
+    return bitBuffer.toUInt8List();
+  }
+
+  @override
+  String toString() {
+    return """
+  ${typeDisplayName}:
+    Attribute Type: ${typeDisplayName}
+    Attribute Length: ${length}
+    key: ${value}
+  """;
+  }
+
+  @override
+  bool operator ==(Object other) => identical(this, other) || other is StunUInt8ListAttributes && runtimeType == other.runtimeType && value == other.value;
+
+  @override
+  int get hashCode => value.hashCode;
+}
+
+abstract class StunTextAttributes extends StunAttributes {
+  @override
+  late int length = value.length;
+
+  late String value;
+
+  @override
+  fromBuffer(BitBufferReader reader, int type, int length) {
+    super.fromBuffer(reader, type, length);
+    this.value = reader.getStringByUtf8(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
+  }
+
+  @override
+  Uint8List toBuffer() {
+    BitBuffer bitBuffer = BitBuffer();
+    BitBufferWriter writer = bitBuffer.writer();
+    writer.putUnsignedInt(type, binaryDigits: 16);
+    writer.putUnsignedInt(length, binaryDigits: 16);
+    writer.putStringByUtf8(value, binaryDigits: 8, order: BitOrder.MSBFirst);
+    return bitBuffer.toUInt8List();
+  }
+
+  @override
+  bool operator ==(Object other) => identical(this, other) || other is StunTextAttributes && runtimeType == other.runtimeType && value == other.value;
+
+  @override
+  int get hashCode => value.hashCode;
+}
+
+abstract class AddressAttribute extends StunAttributes {
+  static const int FAMILY_IPV4 = 0x01;
+  static const int FAMILY_IPV6 = 0x02;
+  static final FAMILY_STRINGS = {
+    FAMILY_IPV4: "IPv4",
+    FAMILY_IPV6: "IPv6",
+  };
+
+  @override
+  int length = 8;
+
+  String? get familyDisplayName => FAMILY_STRINGS[family];
+
+  late int head;
+  late int family;
+  late int port;
+  late int address;
+
+  @override
+  fromBuffer(BitBufferReader reader, int type, int length) {
+    super.fromBuffer(reader, type, length);
+    this.head = reader.getUnsignedInt(binaryDigits: 8);
+    this.family = reader.getUnsignedInt(binaryDigits: 8);
+    this.port = reader.getUnsignedInt(binaryDigits: 16);
+    switch (family) {
+      case FAMILY_IPV4:
+        this.address = reader.getUnsignedInt(binaryDigits: 32);
+      case FAMILY_IPV6:
+        this.address = reader.getUnsignedInt(binaryDigits: 128);
+      default:
+        throw ArgumentError();
+    }
+  }
+
+  @override
+  Uint8List toBuffer() {
+    BitBuffer bitBuffer = BitBuffer();
+    BitBufferWriter writer = bitBuffer.writer();
+    writer.putUnsignedInt(type, binaryDigits: 16);
+    writer.putUnsignedInt(length, binaryDigits: 16);
+    writer.putUnsignedInt(head, binaryDigits: 8);
+    writer.putUnsignedInt(family, binaryDigits: 8);
+    writer.putUnsignedInt(port, binaryDigits: 16);
+
+    switch (family) {
+      case FAMILY_IPV4:
+        writer.putUnsignedInt(address, binaryDigits: 32);
+      case FAMILY_IPV6:
+        writer.putUnsignedInt(address, binaryDigits: 128);
+        length = 20;
+      default:
+        throw ArgumentError('Invalid address family: $family');
+    }
+
+    return bitBuffer.toUInt8List();
+  }
+
+  String? get addressDisplayName {
+    BitBuffer bitBuffer = BitBuffer();
+    BitBufferWriter writer = bitBuffer.writer();
+    BitBufferReader reader = bitBuffer.reader();
+    switch (family) {
+      case FAMILY_IPV4:
+        writer.putUnsignedInt(address, binaryDigits: 32, order: BitOrder.MSBFirst);
+        return "${reader.getUnsignedInt(binaryDigits: 8, order: BitOrder.MSBFirst)}.${reader.getUnsignedInt(binaryDigits: 8, order: BitOrder.MSBFirst)}.${reader.getUnsignedInt(binaryDigits: 8, order: BitOrder.MSBFirst)}.${reader.getUnsignedInt(binaryDigits: 8, order: BitOrder.MSBFirst)}";
+      case FAMILY_IPV6:
+        writer.putUnsignedInt(address, binaryDigits: 128, order: BitOrder.MSBFirst);
+        return "";
+      default:
+        return "";
+    }
+  }
+
+  @override
+  String toString() {
+    return """
+  ${typeDisplayName}: ${addressDisplayName}:${port}
+    Attribute Type: ${typeDisplayName}
+    Attribute Length: ${length}
+    Reserved: ${head}
+    Protocol Family: ${familyDisplayName} (0x0$family)
+    Port: ${port}
+    IP: ${addressDisplayName}
+  """;
+  }
+
+  @override
+  bool operator ==(Object other) => identical(this, other) || other is AddressAttribute && runtimeType == other.runtimeType && port == other.port && address == other.address;
+
+  @override
+  int get hashCode => port.hashCode ^ address.hashCode;
 }

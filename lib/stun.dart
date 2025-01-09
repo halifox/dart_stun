@@ -17,5 +17,6 @@
  * along with dart_stun. If not, see <http://www.gnu.org/licenses/>.
  */
 
+export 'src/nat_checker_rfc_5780.dart';
 export 'src/stun_client.dart';
 export 'src/stun_message.dart';
