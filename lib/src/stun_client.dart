@@ -124,7 +124,6 @@ abstract class StunClient {
 
   onData(Uint8List data) {
     StunMessage stunMessage = StunMessage.form(data, stunProtocol);
-    print(stunMessage);
     onMessage(stunMessage);
   }
 
