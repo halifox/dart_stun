@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:stun/stun.dart';
 
 /// NAT的行为类型和侦测方法是由STUN（首先在RFC3489中定义，英文全称是Simple Traversal of UDP Through NATs）协议来描述的，STUN协议包括了RFC3489、RFC5389、RFC5780、RFC5769几个系列文档。
@@ -35,6 +37,7 @@ enum NatBehavior {
   PortRestrictedConeNat,
   SymmetricNat,
 }
+
 // 10.2 Binding Lifetime Discovery
 //
 //    STUN can also be used to discover the lifetimes of the bindings
@@ -146,4 +149,19 @@ class NatChecker {
     localPort: localPort,
     stunProtocol: StunProtocol.RFC3489,
   );
+
+  Future<NatBehavior> check() async {
+    _localAddresses = await _initializeLocalAddresses();
+    throw UnimplementedError("此 RFC 已过时。修订后的版本是RFC 5389");
+  }
+
+  Future<List<String>> _initializeLocalAddresses() async {
+    List<String> addresses = [];
+    for (NetworkInterface networkInterface in await NetworkInterface.list()) {
+      for (InternetAddress internetAddress in networkInterface.addresses) {
+        addresses.add(internetAddress.address);
+      }
+    }
+    return addresses;
+  }
 }
