@@ -111,29 +111,50 @@ client.removeOnMessageListener(listener);
 - 如果 STUN 服务器无法解析，`send` 方法将抛出异常。
 - 响应超时时会抛出 `TimeoutException`。
 
----
+## 🛠️ NatChecker 使用方法(rfc5780)
 
-## 示例
+### 创建实例
+
+使用 `NatChecker` 构造函数创建实例，可以指定以下可选参数：
+
+- `serverHost`：STUN 服务器主机名（默认值: `"stun.hot-chilli.net"`）。
+- `serverPort`：STUN 服务器端口（默认值: `3478`）。
+- `localIp`：本地监听的 IP 地址（默认值: `"0.0.0.0"`）。
+- `localPort`：本地监听的端口（默认值: `54320`）。
+
+示例代码：
 
 ```dart
+import 'package:stun/src/nat_checker_rfc_5780.dart' as rfc5780;
+
 void main() async {
-  StunClient client = StunClient.create();
-  StunMessage request = client.createBindingStunMessage();
+   rfc5780.NatChecker checker = rfc5780.NatChecker(
+    serverHost: "stun.l.google.com",
+    serverPort: 19302,
+    localIp: "0.0.0.0",
+    localPort: 12345,
+  );
 
-  client.addOnMessageListener((StunMessage message) {
-    print("收到监听消息: \$message");
-  });
+  final (mappingBehavior, filteringBehavior) = await checker.check();
 
-  try {
-    StunMessage response = await client.sendAndAwait(request);
-    print("收到响应: \$response");
-  } catch (e) {
-    print("发生错误: \$e");
-  }
+  print('NAT 映射行为: $mappingBehavior');
+  print('NAT 过滤行为: $filteringBehavior');
 }
 ```
 
+### 检测 NAT 行为
 
+调用 `check` 方法返回 NAT 的映射行为和过滤行为：
+
+- `NatMappingBehavior`：表示 NAT 的映射特性（如是否对外部地址暴露不同端口）。
+- `NatFilteringBehavior`：表示 NAT 的过滤特性（如是否允许外部地址通过任意端口访问）。
+
+示例返回：
+
+```text
+NAT 映射行为: AddressDependentMapping
+NAT 过滤行为: AddressAndPortDependentFiltering
+```
 
 ---
 
