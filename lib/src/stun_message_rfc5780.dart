@@ -20,7 +20,6 @@
 import 'dart:typed_data';
 
 import 'package:bit_buffer/bit_buffer.dart';
-import 'package:stun/src/stun_message_rfc3489.dart' as rfc3489;
 import 'package:stun/stun.dart';
 
 // 7.  New Attributes
@@ -86,7 +85,10 @@ StunAttributes? resolveAttribute(BitBufferReader reader, int type, int length) {
 //    B: This is the "change port" flag.  If true, it requests the server
 //       to send the Binding Response with a different port than the one
 //       the Binding Request was received on.
-typedef ChangeRequest = rfc3489.ChangeAddress;
+class ChangeRequest extends AddressAttribute {
+  @override
+  int type = StunAttributes.TYPE_CHANGE_REQUEST;
+}
 
 // 7.3.  RESPONSE-ORIGIN
 //
