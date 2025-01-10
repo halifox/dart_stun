@@ -121,7 +121,7 @@ class NatChecker {
       // 响应内容大体为：（NAT映射后的IP地址和端口为：IP_MCA1: PORT_MCA1，STUN Server的另外一个IP地址和端口为：IP_SB: PORT_SB）。
       // 这个时候客户端判断，如果IP_CA: PORT_CA == IP_MCA1: PORT_MCA1，那么该客户端是拥有公网IP的，NAT类型侦测结束。
       StunMessageRfc5780 message = await _stunClient.sendAndAwait(_stunClient.createBindingStunMessage(), isAutoClose: true) as StunMessageRfc5780;
-      if (_localAddresses.contains(message.xorMappedAddressAttribute.addressDisplayName) && message.xorMappedAddressAttribute.port == 3478) {
+      if (_localAddresses.contains(message.xorMappedAddressAttribute.addressDisplayName) && message.xorMappedAddressAttribute.port == serverPort) {
         return NatMappingBehavior.EndpointIndependent;
       }
       return _performPhase2MappingTest(message);

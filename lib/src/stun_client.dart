@@ -43,7 +43,9 @@ abstract class StunClient {
 
   StunClient(this.transport, this.serverHost, this.serverPort, this.localIp, this.localPort, this.stunProtocol);
 
-  int Ti = 395000;
+  int connectTimeoutMilliseconds = 395000;
+  int lookupTimeoutMilliseconds = 3 * 10000;
+  int messageListenerTimeoutMilliseconds = 6 * 10000;
 
   static StunClient create({
     Transport transport = Transport.udp,
@@ -105,7 +107,7 @@ abstract class StunClient {
     addOnMessageListener(listener);
     send(stunMessage);
 
-    Future.delayed(Duration(seconds: 6), () {
+    Future.delayed(Duration(milliseconds: messageListenerTimeoutMilliseconds), () {
       if (!completer.isCompleted) {
         removeOnMessageListener(listener);
         if (isAutoClose) {
@@ -161,10 +163,9 @@ class StunClientUdp extends StunClient {
 
   connect() async {
     if (socket != null) return;
-    socket = await RawDatagramSocket.bind(InternetAddress(localIp), localPort);
-    socket?.timeout(Duration(milliseconds: Ti));
+    socket = await RawDatagramSocket.bind(InternetAddress(localIp), localPort, reusePort: true);
     socket?.listen(_onData);
-    addresses = await InternetAddress.lookup(serverHost).timeout(const Duration(seconds: 3));
+    addresses = await InternetAddress.lookup(serverHost).timeout(Duration(milliseconds: lookupTimeoutMilliseconds));
     if (addresses.isEmpty) throw Exception("Failed to resolve host: $serverHost");
   }
 
@@ -187,8 +188,7 @@ class StunClientTcp extends StunClient {
   StunClientTcp(super.transport, super.serverHost, super.serverPort, super.localIp, super.localPort, super.stunProtocol);
 
   connect() async {
-    socket = await Socket.connect(serverHost, serverPort);
-    socket?.timeout(Duration(milliseconds: Ti));
+    socket = await Socket.connect(serverHost, serverPort, timeout: Duration(milliseconds: connectTimeoutMilliseconds));
     socket?.listen(onData);
   }
 
@@ -209,8 +209,7 @@ class StunClientTls extends StunClient {
   StunClientTls(super.transport, super.serverHost, super.serverPort, super.localIp, super.localPort, super.stunProtocol);
 
   connect() async {
-    socket = await SecureSocket.connect(serverHost, serverPort);
-    socket?.timeout(Duration(milliseconds: Ti));
+    socket = await SecureSocket.connect(serverHost, serverPort, timeout: Duration(milliseconds: connectTimeoutMilliseconds));
     socket?.listen(onData);
   }
 
