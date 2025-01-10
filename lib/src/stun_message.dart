@@ -433,7 +433,7 @@ abstract class StunAttributes {
   fromBuffer(BitBufferReader reader, int type, int length) {
     assert(type == this.type);
     // this.type = type;
-    this.length = length;
+    // this.length = length;
   }
 
   Uint8List toBuffer();
