@@ -140,7 +140,6 @@ enum StunProtocol {
   RFC3489,
   RFC5389,
   RFC5780,
-  MIX,
 }
 
 class StunMessage {
@@ -257,15 +256,6 @@ class StunMessage {
           } else {
             reader.getIntList(attributeLength * 8);
           }
-        case StunProtocol.MIX:
-          StunAttributes? attribute = rfc5780.resolveAttribute(reader, attributeType, attributeLength) ?? //
-              rfc5389.resolveAttribute(reader, attributeType, attributeLength) ?? //
-              rfc3489.resolveAttribute(reader, attributeType, attributeLength);
-          if (attribute != null) {
-            attributes.add(attribute);
-          } else {
-            reader.getIntList(attributeLength * 8);
-          }
       }
     }
     return attributes;
@@ -279,20 +269,8 @@ class StunMessage {
     writer.putUnsignedInt(length, binaryDigits: 16, order: BitOrder.MSBFirst);
     writer.putUnsignedInt(cookie, binaryDigits: 32, order: BitOrder.MSBFirst);
     writer.putUnsignedInt(transactionId, binaryDigits: 96, order: BitOrder.MSBFirst);
-    attributes.forEach((element) {
-      if (element.type == StunAttributes.TYPE_CHANGE_REQUEST) {
-        element as rfc5780.ChangeRequest;
-        writer.putUnsignedInt(element.type, binaryDigits: 16);
-        writer.putUnsignedInt(element.length, binaryDigits: 16);
-        int flag = 0;
-        if (element.flagChangeIp) {
-          flag += 4;
-        }
-        if (element.flagChangePort) {
-          flag += 2;
-        }
-        writer.putUnsignedInt(flag, binaryDigits: 32);
-      }
+    attributes.forEach((attribute) {
+      writer.putIntList(attribute.toBuffer());
     });
     Uint8List buffer = bitBuffer.toUInt8List();
     return buffer;
@@ -309,7 +287,6 @@ class StunMessage {
     for (StunAttributes attribute in attributes) {
       buffer.writeln(attribute.toString());
     }
-
     return buffer.toString();
   }
 }
@@ -367,12 +344,19 @@ abstract class StunAttributes {
     TYPE_OTHER_ADDRESS: "OTHER-ADDRESS",
   };
 
-  int type;
-  int length;
+  abstract int type;
 
-  StunAttributes(this.type, this.length);
+  abstract int length;
 
-  String? get typeDisplayName => "${TYPE_STRINGS[type] ?? "Undefined"}(0x${type.toRadixString(16).padLeft(4, "0")})";
+  String? get typeDisplayName => "${TYPE_STRINGS[type] ?? "Undefined"}(0x${type.toRadixString(16).padLeft(4, "0")})"; //todo
+
+  fromBuffer(BitBufferReader reader, int type, int length) {
+    assert(type == this.type);
+    // this.type = type;
+    this.length = length;
+  }
+
+  Uint8List toBuffer();
 
   @override
   String toString() {
@@ -382,4 +366,171 @@ abstract class StunAttributes {
     Attribute Length: ${length}
   """;
   }
+
+  @override
+  bool operator ==(Object other) => identical(this, other) || other is StunAttributes && runtimeType == other.runtimeType && type == other.type;
+
+  @override
+  int get hashCode => type.hashCode;
+}
+
+abstract class StunUInt8ListAttributes extends StunAttributes {
+  @override
+  late int length = value.length;
+
+  late List<int> value;
+
+  @override
+  fromBuffer(BitBufferReader reader, int type, int length) {
+    super.fromBuffer(reader, type, length);
+    this.value = reader.getIntList(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
+  }
+
+  @override
+  Uint8List toBuffer() {
+    BitBuffer bitBuffer = BitBuffer();
+    BitBufferWriter writer = bitBuffer.writer();
+    writer.putUnsignedInt(type, binaryDigits: 16);
+    writer.putUnsignedInt(length, binaryDigits: 16);
+    writer.putIntList(value, binaryDigits: 8, order: BitOrder.MSBFirst);
+    return bitBuffer.toUInt8List();
+  }
+
+  @override
+  String toString() {
+    return """
+  ${typeDisplayName}:
+    Attribute Type: ${typeDisplayName}
+    Attribute Length: ${length}
+    key: ${value}
+  """;
+  }
+
+  @override
+  bool operator ==(Object other) => identical(this, other) || other is StunUInt8ListAttributes && runtimeType == other.runtimeType && value == other.value;
+
+  @override
+  int get hashCode => value.hashCode;
+}
+
+abstract class StunTextAttributes extends StunAttributes {
+  @override
+  late int length = value.length;
+
+  late String value;
+
+  @override
+  fromBuffer(BitBufferReader reader, int type, int length) {
+    super.fromBuffer(reader, type, length);
+    this.value = reader.getStringByUtf8(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
+  }
+
+  @override
+  Uint8List toBuffer() {
+    BitBuffer bitBuffer = BitBuffer();
+    BitBufferWriter writer = bitBuffer.writer();
+    writer.putUnsignedInt(type, binaryDigits: 16);
+    writer.putUnsignedInt(length, binaryDigits: 16);
+    writer.putStringByUtf8(value, binaryDigits: 8, order: BitOrder.MSBFirst);
+    return bitBuffer.toUInt8List();
+  }
+
+  @override
+  bool operator ==(Object other) => identical(this, other) || other is StunTextAttributes && runtimeType == other.runtimeType && value == other.value;
+
+  @override
+  int get hashCode => value.hashCode;
+}
+
+abstract class AddressAttribute extends StunAttributes {
+  static const int FAMILY_IPV4 = 0x01;
+  static const int FAMILY_IPV6 = 0x02;
+  static final FAMILY_STRINGS = {
+    FAMILY_IPV4: "IPv4",
+    FAMILY_IPV6: "IPv6",
+  };
+
+  @override
+  int length = 8;
+
+  String? get familyDisplayName => FAMILY_STRINGS[family];
+
+  late int head;
+  late int family;
+  late int port;
+  late int address;
+
+  @override
+  fromBuffer(BitBufferReader reader, int type, int length) {
+    super.fromBuffer(reader, type, length);
+    this.head = reader.getUnsignedInt(binaryDigits: 8);
+    this.family = reader.getUnsignedInt(binaryDigits: 8);
+    this.port = reader.getUnsignedInt(binaryDigits: 16);
+    switch (family) {
+      case FAMILY_IPV4:
+        this.address = reader.getUnsignedInt(binaryDigits: 32);
+      case FAMILY_IPV6:
+        this.address = reader.getUnsignedInt(binaryDigits: 128);
+      default:
+        throw ArgumentError();
+    }
+  }
+
+  @override
+  Uint8List toBuffer() {
+    BitBuffer bitBuffer = BitBuffer();
+    BitBufferWriter writer = bitBuffer.writer();
+    writer.putUnsignedInt(type, binaryDigits: 16);
+    writer.putUnsignedInt(length, binaryDigits: 16);
+    writer.putUnsignedInt(head, binaryDigits: 8);
+    writer.putUnsignedInt(family, binaryDigits: 8);
+    writer.putUnsignedInt(port, binaryDigits: 16);
+
+    switch (family) {
+      case FAMILY_IPV4:
+        writer.putUnsignedInt(address, binaryDigits: 32);
+      case FAMILY_IPV6:
+        writer.putUnsignedInt(address, binaryDigits: 128);
+        length = 20;
+      default:
+        throw ArgumentError('Invalid address family: $family');
+    }
+
+    return bitBuffer.toUInt8List();
+  }
+
+  String? get addressDisplayName {
+    BitBuffer bitBuffer = BitBuffer();
+    BitBufferWriter writer = bitBuffer.writer();
+    BitBufferReader reader = bitBuffer.reader();
+    switch (family) {
+      case FAMILY_IPV4:
+        writer.putUnsignedInt(address, binaryDigits: 32, order: BitOrder.MSBFirst);
+        return "${reader.getUnsignedInt(binaryDigits: 8, order: BitOrder.MSBFirst)}.${reader.getUnsignedInt(binaryDigits: 8, order: BitOrder.MSBFirst)}.${reader.getUnsignedInt(binaryDigits: 8, order: BitOrder.MSBFirst)}.${reader.getUnsignedInt(binaryDigits: 8, order: BitOrder.MSBFirst)}";
+      case FAMILY_IPV6:
+        writer.putUnsignedInt(address, binaryDigits: 128, order: BitOrder.MSBFirst);
+        return "";
+      default:
+        return "";
+    }
+  }
+
+  @override
+  String toString() {
+    return """
+  ${typeDisplayName}: ${addressDisplayName}:${port}
+    Attribute Type: ${typeDisplayName}
+    Attribute Length: ${length}
+    Reserved: ${head}
+    Protocol Family: ${familyDisplayName} (0x0$family)
+    Port: ${port}
+    IP: ${addressDisplayName}
+  """;
+  }
+
+  @override
+  bool operator ==(Object other) => identical(this, other) || other is AddressAttribute && runtimeType == other.runtimeType && port == other.port && address == other.address;
+
+  @override
+  int get hashCode => port.hashCode ^ address.hashCode;
 }

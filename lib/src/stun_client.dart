@@ -50,7 +50,7 @@ abstract class StunClient {
     int serverPort = 3478,
     String localIp = "0.0.0.0",
     int localPort = 54320,
-    StunProtocol stunProtocol = StunProtocol.MIX,
+    StunProtocol stunProtocol = StunProtocol.RFC5780,
   }) {
     return switch (transport) {
       Transport.udp => StunClientUdp(transport, serverHost, serverPort, localIp, localPort, stunProtocol),
@@ -109,6 +109,7 @@ abstract class StunClient {
 
   onData(Uint8List data) {
     StunMessage stunMessage = StunMessage.form(data, stunProtocol);
+    print(stunMessage);
     onMessage(stunMessage);
   }
 

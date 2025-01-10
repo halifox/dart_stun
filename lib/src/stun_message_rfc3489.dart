@@ -17,6 +17,8 @@
  * along with dart_stun. If not, see <http://www.gnu.org/licenses/>.
  */
 
+import 'dart:typed_data';
+
 import 'package:bit_buffer/bit_buffer.dart';
 import 'package:stun/stun.dart';
 
@@ -97,44 +99,27 @@ import 'package:stun/stun.dart';
 //
 //    The length refers to the length of the value element, expressed as an
 //    unsigned integral number of bytes.
+
+var types = {
+  StunAttributes.TYPE_MAPPED_ADDRESS: () => MappedAddressAttribute(),
+  StunAttributes.TYPE_RESPONSE_ADDRESS: () => ResponseAddress(),
+  StunAttributes.TYPE_CHANGE_ADDRESS: () => ChangeAddress(),
+  StunAttributes.TYPE_SOURCE_ADDRESS: () => SourceAddress(),
+  StunAttributes.TYPE_CHANGED_ADDRESS: () => ChangedAddress(),
+  StunAttributes.TYPE_USERNAME: () => Username(),
+  StunAttributes.TYPE_PASSWORD: () => Password(),
+  StunAttributes.TYPE_MESSAGE_INTEGRITY: () => MessageIntegrity(),
+  StunAttributes.TYPE_ERROR_CODE: () => ErrorCode(),
+  StunAttributes.TYPE_UNKNOWN_ATTRIBUTES: () => UnknownAttributes(),
+  StunAttributes.TYPE_REFLECTED_FROM: () => ReflectedFrom(),
+};
+
 StunAttributes? resolveAttribute(BitBufferReader reader, int type, int length) {
-  switch (type) {
-    case StunAttributes.TYPE_MAPPED_ADDRESS:
-      return MappedAddressAttribute.form(reader, type, length);
-
-    case StunAttributes.TYPE_RESPONSE_ADDRESS:
-      return ResponseAddress.form(reader, type, length);
-
-    case StunAttributes.TYPE_CHANGE_ADDRESS:
-      return ChangeRequest.form(reader, type, length);
-
-    case StunAttributes.TYPE_SOURCE_ADDRESS:
-      return SourceAddress.form(reader, type, length);
-
-    case StunAttributes.TYPE_CHANGED_ADDRESS:
-      return ChangedAddress.form(reader, type, length);
-
-    case StunAttributes.TYPE_USERNAME:
-      return Username.form(reader, type, length);
-
-    case StunAttributes.TYPE_PASSWORD:
-      return Password.form(reader, type, length);
-
-    case StunAttributes.TYPE_MESSAGE_INTEGRITY:
-      return MessageIntegrity.form(reader, type, length);
-
-    case StunAttributes.TYPE_ERROR_CODE:
-      return ErrorCodeAttribute.form(reader, type, length);
-
-    case StunAttributes.TYPE_UNKNOWN_ATTRIBUTES:
-      return UnknownAttributes.form(reader, type, length);
-
-    case StunAttributes.TYPE_REFLECTED_FROM:
-      return ReflectedFrom.form(reader, type, length);
-
-    default:
-      return null;
-  }
+  var creator = types[type];
+  if (creator == null) return null;
+  StunAttributes attribute = creator();
+  attribute.fromBuffer(reader, type, length);
+  return attribute;
 }
 
 // 11.2.1 MAPPED-ADDRESS
@@ -156,74 +141,9 @@ StunAttributes? resolveAttribute(BitBufferReader reader, int type, int length) {
 //    8 bits of the MAPPED-ADDRESS are ignored, for the purposes of
 //    aligning parameters on natural boundaries.  The IPv4 address is 32
 //    bits.
-class MappedAddressAttribute extends StunAttributes {
-  static const int FAMILY_IPV4 = 0x01;
-  static const int FAMILY_IPV6 = 0x02;
-  static final FAMILY_STRINGS = {
-    FAMILY_IPV4: "IPv4",
-    FAMILY_IPV6: "IPv6",
-  };
-
-  String? get familyDisplayName => FAMILY_STRINGS[family];
-
-  int head;
-  int family;
-  int port;
-  int address;
-
-  MappedAddressAttribute(super.type, super.length, this.head, this.family, this.port, this.address);
-
-  factory MappedAddressAttribute.form(BitBufferReader reader, int type, int length) {
-    assert(length == 8 || length == 20);
-    int head = reader.getUnsignedInt(binaryDigits: 8);
-    int family = reader.getUnsignedInt(binaryDigits: 8);
-    int port = reader.getUnsignedInt(binaryDigits: 16);
-    int address;
-    switch (family) {
-      case FAMILY_IPV4:
-        address = reader.getUnsignedInt(binaryDigits: 32);
-      case FAMILY_IPV6:
-        address = reader.getUnsignedInt(binaryDigits: 128);
-      default:
-        throw ArgumentError();
-    }
-    return MappedAddressAttribute(type, length, head, family, port, address);
-  }
-
-  String? get addressDisplayName {
-    BitBuffer bitBuffer = BitBuffer();
-    BitBufferWriter writer = bitBuffer.writer();
-    BitBufferReader reader = bitBuffer.reader();
-    switch (family) {
-      case FAMILY_IPV4:
-        writer.putUnsignedInt(address, binaryDigits: 32, order: BitOrder.MSBFirst);
-        return "${reader.getUnsignedInt(binaryDigits: 8, order: BitOrder.MSBFirst)}.${reader.getUnsignedInt(binaryDigits: 8, order: BitOrder.MSBFirst)}.${reader.getUnsignedInt(binaryDigits: 8, order: BitOrder.MSBFirst)}.${reader.getUnsignedInt(binaryDigits: 8, order: BitOrder.MSBFirst)}";
-      case FAMILY_IPV6:
-        writer.putUnsignedInt(address, binaryDigits: 128, order: BitOrder.MSBFirst);
-        return "";
-      default:
-        return "";
-    }
-  }
-
+class MappedAddressAttribute extends AddressAttribute {
   @override
-  String toString() {
-    return """
-  ${typeDisplayName}: ${addressDisplayName}:${port}
-    Attribute Type: ${typeDisplayName}
-    Attribute Length: ${length}
-    Reserved: ${head}
-    Protocol Family: ${familyDisplayName} (0x0$family)
-    Port: ${port}
-    IP: ${addressDisplayName}
-  """;
-  }
-
-  @override
-  bool operator ==(Object other) => identical(this, other) || other is MappedAddressAttribute && runtimeType == other.runtimeType && port == other.port && address == other.address;
-
-  @override
-  int get hashCode => port.hashCode ^ address.hashCode;
+  int type = StunAttributes.TYPE_MAPPED_ADDRESS;
 }
 
 // 11.2.2 RESPONSE-ADDRESS
@@ -231,7 +151,10 @@ class MappedAddressAttribute extends StunAttributes {
 //    The RESPONSE-ADDRESS attribute indicates where the response to a
 //    Binding Request should be sent.  Its syntax is identical to MAPPED-
 //    ADDRESS.
-typedef ResponseAddress = MappedAddressAttribute;
+class ResponseAddress extends AddressAttribute {
+  @override
+  int type = StunAttributes.TYPE_RESPONSE_ADDRESS;
+}
 
 // 11.2.3  CHANGED-ADDRESS
 //
@@ -241,7 +164,10 @@ typedef ResponseAddress = MappedAddressAttribute;
 //    Binding Request.  The attribute is always present in a Binding
 //    Response, independent of the value of the flags.  Its syntax is
 //    identical to MAPPED-ADDRESS.
-typedef ChangedAddress = MappedAddressAttribute;
+class ChangedAddress extends AddressAttribute {
+  @override
+  int type = StunAttributes.TYPE_CHANGED_ADDRESS;
+}
 
 // 11.2.4 CHANGE-REQUEST
 //
@@ -265,18 +191,40 @@ typedef ChangedAddress = MappedAddressAttribute;
 //    B: This is the "change port" flag.  If true, it requests the
 //       server to send the Binding Response with a different port than the
 //       one the Binding Request was received on.
-class ChangeRequest extends StunAttributes {
-  bool flagChangeIp;
+class ChangeAddress extends StunAttributes {
+  @override
+  int type = StunAttributes.TYPE_CHANGE_ADDRESS;
 
-  bool flagChangePort;
+  @override
+  int length = 32;
 
-  ChangeRequest(super.type, super.length, this.flagChangeIp, this.flagChangePort);
+  late bool flagChangeIp;
 
-  factory ChangeRequest.form(BitBufferReader reader, int type, int length) {
+  late bool flagChangePort;
+
+  @override
+  fromBuffer(BitBufferReader reader, int type, int length) {
+    super.fromBuffer(reader, type, length);
     int flag = reader.getUnsignedInt(binaryDigits: 32);
-    int flagChangeIp = flag & 0x02;
-    int flagChangePort = flag & 0x04;
-    return ChangeRequest(type, length, flagChangeIp != 0, flagChangePort != 0);
+    flagChangeIp = (flag & 0x04) != 0;
+    flagChangePort = (flag & 0x02) != 0;
+  }
+
+  @override
+  Uint8List toBuffer() {
+    BitBuffer bitBuffer = BitBuffer();
+    BitBufferWriter writer = bitBuffer.writer();
+    writer.putUnsignedInt(type, binaryDigits: 16);
+    writer.putUnsignedInt(length, binaryDigits: 16);
+    int flag = 0;
+    if (flagChangeIp) {
+      flag |= 0x04;
+    }
+    if (flagChangePort) {
+      flag |= 0x02;
+    }
+    writer.putUnsignedInt(flag, binaryDigits: 32);
+    return bitBuffer.toUInt8List();
   }
 
   @override
@@ -297,7 +245,10 @@ class ChangeRequest extends StunAttributes {
 //    indicates the source IP address and port that the server is sending
 //    the response from.  Its syntax is identical to that of MAPPED-
 //    ADDRESS.
-typedef SourceAddress = MappedAddressAttribute;
+class SourceAddress extends AddressAttribute {
+  @override
+  int type = StunAttributes.TYPE_SOURCE_ADDRESS;
+}
 
 // 11.2.6 USERNAME
 //
@@ -310,15 +261,11 @@ typedef SourceAddress = MappedAddressAttribute;
 //    The value of USERNAME is a variable length opaque value.  Its length
 //    MUST be a multiple of 4 (measured in bytes) in order to guarantee
 //    alignment of attributes on word boundaries.
-class Username extends StunAttributes {
-  String username;
+class Username extends StunTextAttributes {
+  @override
+  int type = StunAttributes.TYPE_USERNAME;
 
-  Username(super.type, super.length, this.username);
-
-  factory Username.form(BitBufferReader reader, int type, int length) {
-    String username = reader.getStringByUtf8(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
-    return Username(type, length, username);
-  }
+  String get username => value;
 
   @override
   String toString() {
@@ -340,15 +287,11 @@ class Username extends StunAttributes {
 //    as a shared secret.  Its length MUST be a multiple of 4 (measured in
 //    bytes) in order to guarantee alignment of attributes on word
 //    boundaries.
-class Password extends StunAttributes {
-  String password;
+class Password extends StunTextAttributes {
+  @override
+  int type = StunAttributes.TYPE_PASSWORD;
 
-  Password(super.type, super.length, this.password);
-
-  factory Password.form(BitBufferReader reader, int type, int length) {
-    String password = reader.getStringByUtf8(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
-    return Password(type, length, password);
-  }
+  String get password => value;
 
   @override
   String toString() {
@@ -372,25 +315,11 @@ class Password extends StunAttributes {
 //    a multiple of 64 bytes.  As a result, the MESSAGE-INTEGRITY attribute
 //    MUST be the last attribute in any STUN message.  The key used as
 //    input to HMAC depends on the context.
-class MessageIntegrity extends StunAttributes {
-  List<int> key;
-
-  MessageIntegrity(super.type, super.length, this.key);
-
-  factory MessageIntegrity.form(BitBufferReader reader, int type, int length) {
-    List<int> hmacSha1Digest = reader.getIntList(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
-    return MessageIntegrity(type, length, hmacSha1Digest);
-  }
-
+class MessageIntegrity extends StunUInt8ListAttributes {
   @override
-  String toString() {
-    return """
-  ${typeDisplayName}:
-    Attribute Type: ${typeDisplayName}
-    Attribute Length: ${length}
-    key: ${key}
-  """;
-  }
+  int type = StunAttributes.TYPE_MESSAGE_INTEGRITY;
+
+  List<int> get key => value;
 }
 
 // 11.2.9 ERROR-CODE
@@ -457,20 +386,45 @@ class MessageIntegrity extends StunAttributes {
 //    600 (Global Failure:) The server is refusing to fulfill the request.
 //         The client should not retry.
 //
-class ErrorCodeAttribute extends StunAttributes {
-  int code;
-  String reason;
+class ErrorCode extends StunAttributes {
+  @override
+  int type = StunAttributes.TYPE_ERROR_CODE;
 
-  ErrorCodeAttribute(super.type, super.length, this.code, this.reason);
+  @override
+  late int length = reason.length + 8;
 
-  factory ErrorCodeAttribute.form(BitBufferReader reader, int type, int length) {
-    int head = reader.getUnsignedInt(binaryDigits: 21);
+  late int head;
+  late int code;
+  late String reason;
+
+  @override
+  fromBuffer(BitBufferReader reader, int type, int length) {
+    super.fromBuffer(reader, type, length);
+    head = reader.getUnsignedInt(binaryDigits: 21);
     int clz = reader.getUnsignedInt(binaryDigits: 3);
     int number = reader.getUnsignedInt(binaryDigits: 8);
-    int code = clz * 100 + number;
+    code = clz * 100 + number;
     int lenReason = length * 8 - 21 - 3 - 8;
-    String reason = reader.getStringByUtf8(lenReason, binaryDigits: 8, order: BitOrder.MSBFirst);
-    return ErrorCodeAttribute(type, length, code, reason);
+    reason = reader.getStringByUtf8(lenReason, binaryDigits: 8, order: BitOrder.MSBFirst);
+  }
+
+  @override
+  Uint8List toBuffer() {
+    BitBuffer bitBuffer = BitBuffer();
+    BitBufferWriter writer = bitBuffer.writer();
+    writer.putUnsignedInt(type, binaryDigits: 16);
+    writer.putUnsignedInt(length, binaryDigits: 16);
+
+    int clz = code ~/ 100; // 提取百位（类）
+    int number = code % 100; // 提取十位和个位（编号）
+
+    writer.putUnsignedInt(head, binaryDigits: 21); // 写入21位head
+    writer.putUnsignedInt(clz, binaryDigits: 3); // 写入3位clz
+    writer.putUnsignedInt(number, binaryDigits: 8); // 写入8位number
+
+    writer.putStringByUtf8(reason, binaryDigits: 8, order: BitOrder.MSBFirst); // 写入reason
+
+    return bitBuffer.toUInt8List();
   }
 
   @override
@@ -505,17 +459,28 @@ class ErrorCodeAttribute extends StunAttributes {
 //     |      Attribute 3 Type           |     Attribute 4 Type    ...
 //     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 class UnknownAttributes extends StunAttributes {
-  List<int> types;
+  @override
+  int type = StunAttributes.TYPE_UNKNOWN_ATTRIBUTES;
 
-  UnknownAttributes(super.type, super.length, this.types);
+  @override
+  late int length = types.length * 2;
 
-  factory UnknownAttributes.form(BitBufferReader reader, int type, int length) {
-    List<int> types = [];
-    for (int i = 0; i < length; i += 16) {
-      int type = reader.getUnsignedInt(binaryDigits: 16);
-      types.add(type);
-    }
-    return UnknownAttributes(type, length, types);
+  late List<int> types;
+
+  @override
+  fromBuffer(BitBufferReader reader, int type, int length) {
+    super.fromBuffer(reader, type, length);
+    types = reader.getIntList(length * 8, binaryDigits: 16, order: BitOrder.MSBFirst);
+  }
+
+  @override
+  Uint8List toBuffer() {
+    BitBuffer bitBuffer = BitBuffer();
+    BitBufferWriter writer = bitBuffer.writer();
+    writer.putUnsignedInt(type, binaryDigits: 16);
+    writer.putUnsignedInt(length, binaryDigits: 16);
+    writer.putIntList(types, binaryDigits: 16, order: BitOrder.MSBFirst);
+    return bitBuffer.toUInt8List();
   }
 
   @override
@@ -539,4 +504,7 @@ class UnknownAttributes extends StunAttributes {
 //    denial-of-service attacks.
 //
 //    Its syntax is identical to the MAPPED-ADDRESS attribute.
-typedef ReflectedFrom = MappedAddressAttribute;
+class ReflectedFrom extends AddressAttribute {
+  @override
+  int type = StunAttributes.TYPE_REFLECTED_FROM;
+}

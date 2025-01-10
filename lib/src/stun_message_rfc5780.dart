@@ -17,6 +17,8 @@
  * along with dart_stun. If not, see <http://www.gnu.org/licenses/>.
  */
 
+import 'dart:typed_data';
+
 import 'package:bit_buffer/bit_buffer.dart';
 import 'package:stun/src/stun_message_rfc3489.dart' as rfc3489;
 import 'package:stun/stun.dart';
@@ -37,21 +39,21 @@ import 'package:stun/stun.dart';
 //      Comprehension-optional range (0x8000-0xFFFF):
 //        0x802b: RESPONSE-ORIGIN
 //        0x802c: OTHER-ADDRESS
+
+var types = {
+  StunAttributes.TYPE_CHANGE_REQUEST: () => ChangeRequest(),
+  StunAttributes.TYPE_PADDING: () => Padding(),
+  StunAttributes.TYPE_RESPONSE_PORT: () => ResponsePort(),
+  StunAttributes.TYPE_RESPONSE_ORIGIN: () => ResponseOrigin(),
+  StunAttributes.TYPE_OTHER_ADDRESS: () => OtherAddress(),
+};
+
 StunAttributes? resolveAttribute(BitBufferReader reader, int type, int length) {
-  switch (type) {
-    case StunAttributes.TYPE_CHANGE_REQUEST:
-      return ChangeRequest.form(reader, type, length);
-    case StunAttributes.TYPE_PADDING:
-      return Padding.form(reader, type, length);
-    case StunAttributes.TYPE_RESPONSE_PORT:
-      return ResponsePort.form(reader, type, length);
-    case StunAttributes.TYPE_RESPONSE_ORIGIN:
-      return ResponseOrigin.form(reader, type, length);
-    case StunAttributes.TYPE_OTHER_ADDRESS:
-      return OtherAddress.form(reader, type, length);
-    default:
-      return null;
-  }
+  var creator = types[type];
+  if (creator == null) return null;
+  StunAttributes attribute = creator();
+  attribute.fromBuffer(reader, type, length);
+  return attribute;
 }
 
 // 7.2.  CHANGE-REQUEST
@@ -84,7 +86,7 @@ StunAttributes? resolveAttribute(BitBufferReader reader, int type, int length) {
 //    B: This is the "change port" flag.  If true, it requests the server
 //       to send the Binding Response with a different port than the one
 //       the Binding Request was received on.
-typedef ChangeRequest = rfc3489.ChangeRequest;
+typedef ChangeRequest = rfc3489.ChangeAddress;
 
 // 7.3.  RESPONSE-ORIGIN
 //
@@ -92,7 +94,10 @@ typedef ChangeRequest = rfc3489.ChangeRequest;
 //    the source IP address and port the response was sent from.  It is
 //    useful for detecting double NAT configurations.  It is only present
 //    in Binding Responses.
-typedef ResponseOrigin = rfc3489.MappedAddressAttribute;
+class ResponseOrigin extends AddressAttribute {
+  @override
+  int type = StunAttributes.TYPE_RESPONSE_ORIGIN;
+}
 
 // 7.4.  OTHER-ADDRESS
 //
@@ -106,7 +111,10 @@ typedef ResponseOrigin = rfc3489.MappedAddressAttribute;
 //    RFC 3489 [RFC3489] because it is simply a new name with the same
 //    semantics as CHANGED-ADDRESS.  It has been renamed to more clearly
 //    indicate its function.
-typedef OtherAddress = rfc3489.MappedAddressAttribute;
+class OtherAddress extends AddressAttribute {
+  @override
+  int type = StunAttributes.TYPE_OTHER_ADDRESS;
+}
 
 // 7.5.  RESPONSE-PORT
 //
@@ -126,14 +134,30 @@ typedef OtherAddress = rfc3489.MappedAddressAttribute;
 //    followed by 2 bytes of padding.  Allowable values of RESPONSE-PORT
 //    are 0-65536.
 class ResponsePort extends StunAttributes {
-  int port;
+  @override
+  int type = StunAttributes.TYPE_RESPONSE_PORT;
 
-  ResponsePort(super.type, super.length, this.port);
+  @override
+  int length = 0;
 
-  factory ResponsePort.form(BitBufferReader reader, int type, int length) {
-    int port = reader.getUnsignedInt(binaryDigits: 16);
+  late int port;
+
+  @override
+  fromBuffer(BitBufferReader reader, int type, int length) {
+    super.fromBuffer(reader, type, length);
+    port = reader.getUnsignedInt(binaryDigits: 16);
     int _ = reader.getUnsignedInt(binaryDigits: 2 * 8); //todo
-    return ResponsePort(type, length, port);
+  }
+
+  @override
+  Uint8List toBuffer() {
+    BitBuffer bitBuffer = BitBuffer();
+    BitBufferWriter writer = bitBuffer.writer();
+    writer.putUnsignedInt(type, binaryDigits: 16);
+    writer.putUnsignedInt(length, binaryDigits: 16);
+    writer.putUnsignedInt(port, binaryDigits: 16);
+    writer.putUnsignedInt(0x00, binaryDigits: 2 * 8);
+    return bitBuffer.toUInt8List();
   }
 
   @override
@@ -162,11 +186,26 @@ class ResponsePort extends StunAttributes {
 //    of UDP fragments, they are an exception to the usual rule that STUN
 //    messages be less than the MTU of the path.
 class Padding extends StunAttributes {
-  Padding(super.type, super.length);
+  @override
+  int type = StunAttributes.TYPE_PADDING;
 
-  factory Padding.form(BitBufferReader reader, int type, int length) {
+  @override
+  int length = 0;
+
+  @override
+  fromBuffer(BitBufferReader reader, int type, int length) {
+    super.fromBuffer(reader, type, length);
     reader.getIntList(length * 8, binaryDigits: 8, order: BitOrder.MSBFirst);
-    return Padding(type, length);
+  }
+
+  @override
+  Uint8List toBuffer() {
+    BitBuffer bitBuffer = BitBuffer();
+    BitBufferWriter writer = bitBuffer.writer();
+    writer.putUnsignedInt(type, binaryDigits: 16);
+    writer.putUnsignedInt(length, binaryDigits: 16);
+    writer.putIntList(List.filled(length, 0), binaryDigits: 8, order: BitOrder.MSBFirst);
+    return bitBuffer.toUInt8List();
   }
 
   @override
