@@ -202,6 +202,8 @@ class ChangeAddress extends StunAttributes {
 
   late bool flagChangePort;
 
+  ChangeAddress({this.flagChangeIp = false, this.flagChangePort = false});
+
   @override
   fromBuffer(BitBufferReader reader, int type, int length) {
     super.fromBuffer(reader, type, length);
