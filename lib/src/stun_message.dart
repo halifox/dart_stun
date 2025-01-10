@@ -142,21 +142,90 @@ enum StunProtocol {
   RFC5780,
 }
 
-class StunMessage {
+class StunMessageRfc5780 extends StunMessageRfc5389 {
+  @override
+  StunProtocol stunProtocol = StunProtocol.RFC5780;
+
+  StunMessageRfc5780(super.head, super.type, super.length, super.cookie, super.transactionId, super.attributes);
+
+  get changeRequest => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_CHANGE_REQUEST) as rfc5780.ChangeRequest;
+
+  get padding => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_PADDING) as rfc5780.Padding;
+
+  get responsePort => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_RESPONSE_PORT) as rfc5780.ResponsePort;
+
+  get responseOrigin => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_RESPONSE_ORIGIN) as rfc5780.ResponseOrigin;
+
+  get otherAddress => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_OTHER_ADDRESS) as rfc5780.OtherAddress;
+}
+
+class StunMessageRfc5389 extends StunMessage {
+  @override
+  StunProtocol stunProtocol = StunProtocol.RFC5389;
+
+  StunMessageRfc5389(super.head, super.type, super.length, super.cookie, super.transactionId, super.attributes);
+
+  get mappedAddressAttribute => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_MAPPED_ADDRESS) as rfc5389.MappedAddressAttribute;
+
+  get username => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_USERNAME) as rfc5389.Username;
+
+  get messageIntegrity => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_MESSAGE_INTEGRITY) as rfc5389.MessageIntegrity;
+
+  get errorCode => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_ERROR_CODE) as rfc5389.ErrorCode;
+
+  get unknownAttributes => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_UNKNOWN_ATTRIBUTES) as rfc5389.UnknownAttributes;
+
+  get realm => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_REALM) as rfc5389.Realm;
+
+  get nonce => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_NONCE) as rfc5389.Nonce;
+
+  get xorMappedAddressAttribute => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_XOR_MAPPED_ADDRESS) as rfc5389.XorMappedAddressAttribute;
+
+  get software => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_SOFTWARE) as rfc5389.Software;
+
+  get alternateServer => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_ALTERNATE_SERVER) as rfc5389.AlternateServer;
+
+  get fingerprint => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_FINGERPRINT) as rfc5389.Fingerprint;
+}
+
+class StunMessageRfc3489 extends StunMessage {
+  @override
+  StunProtocol stunProtocol = StunProtocol.RFC3489;
+
+  StunMessageRfc3489(super.head, super.type, super.length, super.cookie, super.transactionId, super.attributes);
+
+  get mappedAddressAttribute => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_MAPPED_ADDRESS) as rfc3489.MappedAddressAttribute;
+
+  get responseAddress => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_RESPONSE_ADDRESS) as rfc3489.ResponseAddress;
+
+  get changeAddress => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_CHANGE_ADDRESS) as rfc3489.ChangeAddress;
+
+  get sourceAddress => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_SOURCE_ADDRESS) as rfc3489.SourceAddress;
+
+  get changedAddress => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_CHANGED_ADDRESS) as rfc3489.ChangedAddress;
+
+  get username => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_USERNAME) as rfc3489.Username;
+
+  get password => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_PASSWORD) as rfc3489.Password;
+
+  get messageIntegrity => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_MESSAGE_INTEGRITY) as rfc3489.MessageIntegrity;
+
+  get errorCode => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_ERROR_CODE) as rfc3489.ErrorCode;
+
+  get unknownAttributes => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_UNKNOWN_ATTRIBUTES) as rfc3489.UnknownAttributes;
+
+  get reflectedFrom => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_REFLECTED_FROM) as rfc3489.ReflectedFrom;
+}
+
+abstract class StunMessage {
   int head;
   int type;
   int length;
   int cookie;
   int transactionId;
-  StunProtocol stunProtocol;
+  abstract StunProtocol stunProtocol;
 
   List<StunAttributes> attributes;
-
-  rfc5389.MappedAddressAttribute get mappedAddress => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_MAPPED_ADDRESS) as rfc5389.MappedAddressAttribute;
-
-  rfc5780.OtherAddress get otherAddress => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_OTHER_ADDRESS) as rfc5780.OtherAddress;
-
-  rfc5389.XorMappedAddressAttribute get xorMappedAddressAttribute => attributes.firstWhere((e) => e.type == StunAttributes.TYPE_XOR_MAPPED_ADDRESS) as rfc5389.XorMappedAddressAttribute;
 
   static const int HEAD = 0x00;
 
@@ -190,7 +259,18 @@ class StunMessage {
 
   static const int MAGIC_COOKIE = 0x2112A442;
 
-  StunMessage(this.head, this.type, this.length, this.cookie, this.transactionId, this.attributes, this.stunProtocol);
+  StunMessage(this.head, this.type, this.length, this.cookie, this.transactionId, this.attributes);
+
+  factory StunMessage.create(int head, int type, int length, int cookie, int transactionId, List<StunAttributes> attributes, StunProtocol stunProtocol) {
+    switch (stunProtocol) {
+      case StunProtocol.RFC3489:
+        return StunMessageRfc3489(head, type, length, cookie, transactionId, attributes);
+      case StunProtocol.RFC5389:
+        return StunMessageRfc5389(head, type, length, cookie, transactionId, attributes);
+      case StunProtocol.RFC5780:
+        return StunMessageRfc5780(head, type, length, cookie, transactionId, attributes);
+    }
+  }
 
   factory StunMessage.form(Uint8List data, StunProtocol stunProtocol) {
     //if error: drop this
@@ -214,7 +294,7 @@ class StunMessage {
             int transactionId = reader.getUnsignedInt(binaryDigits: 96);
             List<StunAttributes> attributes = resolveAttributes(reader, stunProtocol);
             //todo assert FINGERPRINT
-            return StunMessage(head, type, length, cookie, transactionId, attributes, stunProtocol);
+            return StunMessage.create(head, type, length, cookie, transactionId, attributes, stunProtocol);
           default:
             throw Exception();
         }

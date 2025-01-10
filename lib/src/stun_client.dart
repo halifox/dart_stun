@@ -22,6 +22,7 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:stun/src/stun_message_rfc3489.dart';
 import 'package:stun/stun.dart';
 
 typedef StunMessageListener = void Function(StunMessage stunMessage);
@@ -60,7 +61,7 @@ abstract class StunClient {
   }
 
   StunMessage createBindingStunMessage() {
-    StunMessage stunMessage = StunMessage(
+    return StunMessage.create(
       StunMessage.HEAD,
       StunMessage.METHOD_BINDING | StunMessage.CLASS_REQUEST,
       0,
@@ -70,7 +71,21 @@ abstract class StunClient {
       [],
       stunProtocol,
     );
-    return stunMessage;
+  }
+
+  StunMessage createChangeStunMessage({bool flagChangeIp = true, bool flagChangePort = true}) {
+    return StunMessage.create(
+      StunMessage.HEAD,
+      StunMessage.METHOD_BINDING | StunMessage.CLASS_REQUEST,
+      0,
+      StunMessage.MAGIC_COOKIE,
+      //todo: the transaction ID MUST be uniformly and randomly chosen from the interval 0 .. 2**96-1
+      Random.secure().nextInt(2 << 32 - 1),
+      [
+        ChangeAddress(flagChangeIp: flagChangeIp, flagChangePort: flagChangePort),
+      ],
+      stunProtocol,
+    );
   }
 
   connect();
