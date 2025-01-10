@@ -86,9 +86,17 @@ dependencies:
 
 ## 🙏 致谢
 
+- [P2P技术详解(一)：NAT详解——详细原理、P2P简介](http://www.52im.net/thread-50-1-1.html)
+- [P2P技术详解(二)：P2P中的NAT穿越(打洞)方案详解](http://www.52im.net/thread-542-1-1.html)
+- [P2P技术详解(三)：P2P中的NAT穿越(打洞)方案详解(进阶分析篇)](http://www.52im.net/thread-2872-1-1.html)
+- [Netmanias 对于 RFC 3489 与 STUN (RFC 5389/5780) 的对比解读](https://netmanias.com/en/post/techdocs/6065/nat-network-protocol/stun-rfc-3489-vs-stun-rfc-5389-5780)
 - [RFC 3489](https://datatracker.ietf.org/doc/html/rfc3489)
 - [RFC 5389](https://datatracker.ietf.org/doc/html/rfc5389)
 - [RFC 5780](https://datatracker.ietf.org/doc/html/rfc5780)
+- [RFC 3489 中文](https://rfc2cn.com/rfc3489.html)
+- [RFC 5389 中文](https://rfc2cn.com/rfc5389.html)
+- [RFC 5780 中文](https://rfc2cn.com/rfc5780.html)
+
 
 ## 📢 法律声明
 

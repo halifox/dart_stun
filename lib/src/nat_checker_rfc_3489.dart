@@ -35,7 +35,94 @@ enum NatBehavior {
   PortRestrictedConeNat,
   SymmetricNat,
 }
-
+// 10.2 Binding Lifetime Discovery
+//
+//    STUN can also be used to discover the lifetimes of the bindings
+//    created by the NAT.  In many cases, the client will need to refresh
+//    the binding, either through a new STUN request, or an application
+//    packet, in order for the application to continue to use the binding.
+//    By discovering the binding lifetime, the client can determine how
+//    frequently it needs to refresh.
+//
+//
+//                         +--------+
+//                         |  Test  |
+//                         |   I    |
+//                         +--------+
+//                              |
+//                              |
+//                              V
+//                             /\              /\
+//                          N /  \ Y          /  \ Y             +--------+
+//           UDP     <-------/Resp\--------->/ IP \------------->|  Test  |
+//           Blocked         \ ?  /          \Same/              |   II   |
+//                            \  /            \? /               +--------+
+//                             \/              \/                    |
+//                                              | N                  |
+//                                              |                    V
+//                                              V                    /\
+//                                          +--------+  Sym.      N /  \
+//                                          |  Test  |  UDP    <---/Resp\
+//                                          |   II   |  Firewall   \ ?  /
+//                                          +--------+              \  /
+//                                              |                    \/
+//                                              V                     |Y
+//                   /\                         /\                    |
+//    Symmetric  N  /  \       +--------+   N  /  \                   V
+//       NAT  <--- / IP \<-----|  Test  |<--- /Resp\               Open
+//                 \Same/      |   I    |     \ ?  /               Internet
+//                  \? /       +--------+      \  /
+//                   \/                         \/
+//                   |                           |Y
+//                   |                           |
+//                   |                           V
+//                   |                           Full
+//                   |                           Cone
+//                   V              /\
+//               +--------+        /  \ Y
+//               |  Test  |------>/Resp\---->Restricted
+//               |   III  |       \ ?  /
+//               +--------+        \  /
+//                                  \/
+//                                   |N
+//                                   |       Port
+//                                   +------>Restricted
+//
+//                  Figure 2: Flow for type discovery process
+//
+//    To determine the binding lifetime, the client first sends a Binding
+//    Request to the server from a particular socket, X.  This creates a
+//    binding in the NAT.  The response from the server contains a MAPPED-
+//    ADDRESS attribute, providing the public address and port on the NAT.
+//    Call this Pa and Pp, respectively.  The client then starts a timer
+//    with a value of T seconds.  When this timer fires, the client sends
+//    another Binding Request to the server, using the same destination
+//    address and port, but from a different socket, Y.  This request
+//    contains a RESPONSE-ADDRESS address attribute, set to (Pa,Pp).  This
+//    will create a new binding on the NAT, and cause the STUN server to
+//    send a Binding Response that would match the old binding, if it still
+//    exists.  If the client receives the Binding Response on socket X, it
+//    knows that the binding has not expired.  If the client receives the
+//    Binding Response on socket Y (which is possible if the old binding
+//    expired, and the NAT allocated the same public address and port to
+//    the new binding), or receives no response at all, it knows that the
+//    binding has expired.
+//
+//    The client can find the value of the binding lifetime by doing a
+//    binary search through T, arriving eventually at the value where the
+//    response is not received for any timer greater than T, but is
+//    received for any timer less than T.
+//
+//    This discovery process takes quite a bit of time, and is something
+//    that will typically be run in the background on a device once it
+//    boots.
+//
+//    It is possible that the client can get inconsistent results each time
+//    this process is run.  For example, if the NAT should reboot, or be
+//    reset for some reason, the process may discover a lifetime than is
+//    shorter than the actual one.  For this reason, implementations are
+//    encouraged to run the test numerous times, and be prepared to get
+//    inconsistent results.
 class NatChecker {
   String serverHost;
   int serverPort;
