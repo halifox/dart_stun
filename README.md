@@ -1,4 +1,3 @@
-```markdown
 # dart_stun
 
 [中文文档](README-CN.md)
@@ -208,4 +207,3 @@ Due to possible patent or copyright implications, ensure you understand relevant
 All code and related content are for personal learning and reference. Any legal liability arising from use is solely the user's responsibility.
 
 Thank you for your understanding and support.
-```
