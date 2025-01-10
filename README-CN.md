@@ -30,44 +30,110 @@ dependencies:
 
 ## 🛠️ 使用方法
 
-这段代码演示了如何使用 `StunClient` 类与 STUN 服务器进行通信。STUN（Session Traversal Utilities for NAT）协议被广泛用于帮助 NAT（网络地址转换）后的设备建立直接的 UDP 或 TCP 连接。
+### 创建 STUN 客户端
+使用 `StunClient.create` 方法创建客户端实例。
 
-1. **创建 STUN 客户端**:
-    ```dart
-    StunClient stunClient = StunClient.create(
-      transport: Transport.udp,  // 选择传输协议：UDP, TCP, TLS等
-      serverHost: "stun.hot-chilli.net",  // STUN 服务器的主机名或IP地址
-      serverPort: 3478,  // STUN 服务器的端口（标准STUN端口是3478）
-      localIp: "0.0.0.0",  // 本地IP地址，通常可以设置为"0.0.0.0"，表示自动选择
-      localPort: 54320,  // 本地端口，客户端连接时会使用该端口
-      stunProtocol: StunProtocol.RFC5780,  // 选择STUN协议的版本，RFC5780是最常用的一个
-    );
-    ```
+```dart
+StunClient client = StunClient.create(
+  transport: Transport.udp,          // 传输协议：udp、tcp 或 tls
+  serverHost: "stun.hot-chilli.net", // STUN 服务器地址
+  serverPort: 3478,                  // STUN 服务器端口
+  localIp: "0.0.0.0",               // 本地 IP 地址
+  localPort: 54320,                 // 本地端口
+  stunProtocol: StunProtocol.RFC5780 // 使用的 STUN 协议版本
+);
+```
 
-    - `Transport.udp`：指定传输协议，`Transport.udp` 表示使用 UDP 协议，`Transport.tcp` 和 `Transport.tls` 也可以作为选择。
-    - `serverHost: "stun.hot-chilli.net"`：设置 STUN 服务器的主机地址。
-    - `serverPort: 3478`：配置与 STUN 服务器通信的端口，3478 是 STUN 协议的标准端口。
-    - `localIp: "0.0.0.0"`：自动选择本地 IP 地址，通常设置为 "0.0.0.0"。
-    - `localPort: 54320`：本地端口，供客户端用于连接。
-    - `stunProtocol: StunProtocol.RFC5780`：指定使用的 STUN 协议版本。可以选择 `RFC5780`、`RFC3489`、`RFC5389` 或混合协议 `MIX`。
+### 创建绑定请求（Binding Request）
+使用 `createBindingStunMessage` 方法生成绑定请求消息。
 
-2. **连接到 STUN 服务器**:
-    ```dart
-    await stunClient.connect();
-    ```
-   通过调用 `stunClient.connect()` 方法，客户端会尝试与 STUN 服务器建立连接。
+```dart
+StunMessage bindingRequest = client.createBindingStunMessage();
+```
 
-3. **创建绑定请求消息**:
-    ```dart
-    StunMessage stunMessage = stunClient.createBindingStunMessage();
-    ```
-   通过调用 `createBindingStunMessage`，客户端会生成一个绑定请求消息（Binding Request）。该消息用于向 STUN 服务器请求获取公网 IP 和端口映射。
+### 创建地址变更请求（Change Request）
+使用 `createChangeStunMessage` 方法生成地址变更请求消息。
 
-4. **发送请求并等待响应**:
-    ```dart
-    StunMessage data = await stunClient.sendAndAwait(stunMessage);
-    ```
-   使用 `sendAndAwait` 方法发送绑定请求消息并等待服务器响应。返回的数据是一个 `StunMessage` 对象，包含了 STUN 服务器的响应信息。
+```dart
+StunMessage changeRequest = client.createChangeStunMessage(
+  flagChangeIp: true,   // 是否请求变更 IP
+  flagChangePort: true  // 是否请求变更端口
+);
+```
+
+### 发送请求并等待响应
+使用 `sendAndAwait` 方法发送 STUN 消息并等待响应。
+
+```dart
+try {
+  StunMessage response = await client.sendAndAwait(bindingRequest, isAutoClose: true);
+  // 处理响应
+} catch (e) {
+  print("请求超时或发生错误: $e");
+}
+```
+
+### 直接发送 STUN 消息
+使用 `send` 方法直接发送 STUN 消息。
+
+```dart
+await client.send(bindingRequest);
+```
+
+### 消息监听
+通过添加和移除消息监听器，可以处理收到的 STUN 消息。
+
+### 添加消息监听器
+使用 `addOnMessageListener` 方法注册消息监听器。
+
+```dart
+client.addOnMessageListener((StunMessage message) {
+  print("收到消息: \$message");
+});
+```
+
+### 移除消息监听器
+使用 `removeOnMessageListener` 方法移除已注册的监听器。
+
+```dart
+client.removeOnMessageListener(listener);
+```
+
+### 超时处理
+`sendAndAwait` 方法默认超时时间为 6 秒，超时将抛出 `TimeoutException`。
+
+### 注意事项
+- 发送消息前需确保 STUN 服务器地址已成功解析。
+- `isAutoClose` 参数设为 `true` 时，响应后将自动断开连接。
+- 事务 ID（Transaction ID）需随机生成，确保唯一性。
+
+### 错误处理
+- 如果 STUN 服务器无法解析，`send` 方法将抛出异常。
+- 响应超时时会抛出 `TimeoutException`。
+
+---
+
+## 示例
+
+```dart
+void main() async {
+  StunClient client = StunClient.create();
+  StunMessage request = client.createBindingStunMessage();
+
+  client.addOnMessageListener((StunMessage message) {
+    print("收到监听消息: \$message");
+  });
+
+  try {
+    StunMessage response = await client.sendAndAwait(request);
+    print("收到响应: \$response");
+  } catch (e) {
+    print("发生错误: \$e");
+  }
+}
+```
+
+
 
 ---
 
