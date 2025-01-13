@@ -121,6 +121,11 @@ class NatChecker {
       // 响应内容大体为：（NAT映射后的IP地址和端口为：IP_MCA1: PORT_MCA1，STUN Server的另外一个IP地址和端口为：IP_SB: PORT_SB）。
       // 这个时候客户端判断，如果IP_CA: PORT_CA == IP_MCA1: PORT_MCA1，那么该客户端是拥有公网IP的，NAT类型侦测结束。
       StunMessageRfc5780 message = await _stunClient.sendAndAwait(_stunClient.createBindingStunMessage(), isAutoClose: true) as StunMessageRfc5780;
+
+      if (!message.attributes.any((e) => e.type == StunAttributes.TYPE_XOR_MAPPED_ADDRESS)) {
+        //服务器不支持rfc5780
+        throw Exception('服务器不支持 RFC5780 协议');
+      }
       if (_localAddresses.contains(message.xorMappedAddressAttribute.addressDisplayName) && message.xorMappedAddressAttribute.port == serverPort) {
         return NatMappingBehavior.EndpointIndependent;
       }
@@ -142,6 +147,10 @@ class NatChecker {
       // 如果IP_MCA1: PORT_MCA1 != IP_MCA2: PORT_MCA2,那么就要进行下面的第3步测试。
       _stunClient.serverHost = message1.otherAddress.addressDisplayName!;
       StunMessageRfc5780 message = await _stunClient.sendAndAwait(_stunClient.createBindingStunMessage(), isAutoClose: true) as StunMessageRfc5780;
+      if (!message.attributes.any((e) => e.type == StunAttributes.TYPE_XOR_MAPPED_ADDRESS)) {
+        //服务器不支持rfc5780
+        throw Exception('服务器不支持 RFC5780 协议');
+      }
       if (message.xorMappedAddressAttribute == message1.xorMappedAddressAttribute) {
         return NatMappingBehavior.EndpointIndependent;
       }
@@ -164,6 +173,10 @@ class NatChecker {
       _stunClient.serverHost = message1.otherAddress.addressDisplayName!;
       _stunClient.serverPort = message1.otherAddress.port;
       StunMessageRfc5780 message = await _stunClient.sendAndAwait(_stunClient.createBindingStunMessage(), isAutoClose: true) as StunMessageRfc5780;
+      if (!message.attributes.any((e) => e.type == StunAttributes.TYPE_XOR_MAPPED_ADDRESS)) {
+        //服务器不支持rfc5780
+        throw Exception('服务器不支持 RFC5780 协议');
+      }
       if (message.xorMappedAddressAttribute == message2.xorMappedAddressAttribute) {
         return NatMappingBehavior.AddressDependent;
       } else {
