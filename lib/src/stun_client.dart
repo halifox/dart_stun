@@ -105,7 +105,7 @@ abstract class StunClient {
       }
     };
     addOnMessageListener(listener);
-    send(stunMessage);
+    await send(stunMessage);
 
     Timer? timer = Timer(Duration(milliseconds: messageListenerTimeoutMilliseconds), () {
       if (!completer.isCompleted) {
