@@ -79,7 +79,7 @@ abstract class StunClient {
     return StunMessage.create(
       StunMessage.HEAD,
       StunMessage.METHOD_BINDING | StunMessage.CLASS_REQUEST,
-      0,
+      8,
       StunMessage.MAGIC_COOKIE,
       //todo: the transaction ID MUST be uniformly and randomly chosen from the interval 0 .. 2**96-1
       Random.secure().nextInt(2 << 32 - 1),

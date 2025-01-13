@@ -196,7 +196,7 @@ class ChangeAddress extends StunAttributes {
   int type = StunAttributes.TYPE_CHANGE_ADDRESS;
 
   @override
-  int length = 32;
+  int length = 4;
 
   late bool flagChangeIp;
 
