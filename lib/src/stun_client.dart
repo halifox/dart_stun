@@ -163,7 +163,7 @@ class StunClientUdp extends StunClient {
 
   connect() async {
     if (socket != null) return;
-    socket = await RawDatagramSocket.bind(InternetAddress(localIp), localPort, reusePort: true);
+    socket = await RawDatagramSocket.bind(InternetAddress(localIp), localPort);
     socket?.listen(_onData);
     addresses = await InternetAddress.lookup(serverHost).timeout(Duration(milliseconds: lookupTimeoutMilliseconds));
     if (addresses.isEmpty) throw Exception("Failed to resolve host: $serverHost");
