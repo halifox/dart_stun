@@ -25,7 +25,7 @@ dependencies:
   stun:
     git:
       url: https://github.com/halifox/dart_stun
-      ref: 2.0.0
+      ref: 2.0.3
 ```
 
 ---
@@ -164,9 +164,11 @@ Call `check` to return the NAT mapping and filtering behaviors:
 Example Output:
 
 ```text
-NAT Mapping Behavior: AddressDependentMapping
-NAT Filtering Behavior: AddressAndPortDependentFiltering
+NAT Mapping Behavior: NatMappingBehavior.EndpointIndependent
+NAT Filtering Behavior: NatFilteringBehavior.AddressAndPortDependent
 ```
+
+![img.png](doc/img.png)
 
 ---
 

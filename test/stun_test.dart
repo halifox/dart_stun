@@ -21,7 +21,6 @@ import 'package:stun/stun.dart';
 import 'package:test/test.dart';
 
 void main() {
-
   test("udp", () async {
     StunClient stunClient = StunClient.create(
       transport: Transport.udp,
@@ -62,5 +61,11 @@ void main() {
     StunMessage stunMessage = stunClient.createBindingStunMessage();
     StunMessage data = await stunClient.sendAndAwait(stunMessage);
     print(data);
+  });
+
+  test("natChecker", () async {
+    var natChecker = NatChecker();
+    var result = await natChecker.check();
+    print(result);
   });
 }

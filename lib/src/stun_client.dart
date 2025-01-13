@@ -43,9 +43,9 @@ abstract class StunClient {
 
   StunClient(this.transport, this.serverHost, this.serverPort, this.localIp, this.localPort, this.stunProtocol);
 
-  int connectTimeoutMilliseconds = 395000;
-  int lookupTimeoutMilliseconds = 3 * 10000;
-  int messageListenerTimeoutMilliseconds = 6 * 10000;
+  int connectTimeoutMilliseconds = 30 * 1000;
+  int lookupTimeoutMilliseconds = 3 * 1000;
+  int messageListenerTimeoutMilliseconds = 3 * 1000;
 
   static StunClient create({
     Transport transport = Transport.udp,
@@ -79,7 +79,7 @@ abstract class StunClient {
     return StunMessage.create(
       StunMessage.HEAD,
       StunMessage.METHOD_BINDING | StunMessage.CLASS_REQUEST,
-      0,
+      8,
       StunMessage.MAGIC_COOKIE,
       //todo: the transaction ID MUST be uniformly and randomly chosen from the interval 0 .. 2**96-1
       Random.secure().nextInt(2 << 32 - 1),
@@ -105,23 +105,25 @@ abstract class StunClient {
       }
     };
     addOnMessageListener(listener);
-    send(stunMessage);
+    await send(stunMessage);
 
-    Future.delayed(Duration(milliseconds: messageListenerTimeoutMilliseconds), () {
+    Timer? timer = Timer(Duration(milliseconds: messageListenerTimeoutMilliseconds), () {
       if (!completer.isCompleted) {
-        removeOnMessageListener(listener);
-        if (isAutoClose) {
-          disconnect();
-        }
         completer.completeError(TimeoutException("Response timed out after 3 seconds"));
       }
     });
-    StunMessage message = await completer.future;
-    removeOnMessageListener(listener);
-    if (isAutoClose) {
-      disconnect();
+    try {
+      StunMessage message = await completer.future;
+      return message;
+    } catch (e, stackTrace) {
+      rethrow;
+    } finally {
+      timer.cancel();
+      removeOnMessageListener(listener);
+      if (isAutoClose) {
+        disconnect();
+      }
     }
-    return message;
   }
 
   onData(Uint8List data) {
@@ -163,9 +165,9 @@ class StunClientUdp extends StunClient {
 
   connect() async {
     if (socket != null) return;
-    socket = await RawDatagramSocket.bind(InternetAddress(localIp), localPort, reusePort: true);
+    socket = await RawDatagramSocket.bind(InternetAddress(localIp), localPort);
     socket?.listen(_onData);
-    addresses = await InternetAddress.lookup(serverHost).timeout(Duration(milliseconds: lookupTimeoutMilliseconds));
+    addresses = await InternetAddress.lookup(serverHost, type: InternetAddressType.IPv4).timeout(Duration(milliseconds: lookupTimeoutMilliseconds));
     if (addresses.isEmpty) throw Exception("Failed to resolve host: $serverHost");
   }
 
