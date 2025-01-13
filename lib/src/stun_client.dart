@@ -107,21 +107,23 @@ abstract class StunClient {
     addOnMessageListener(listener);
     send(stunMessage);
 
-    Future.delayed(Duration(milliseconds: messageListenerTimeoutMilliseconds), () {
+    Timer? timer = Timer(Duration(milliseconds: messageListenerTimeoutMilliseconds), () {
       if (!completer.isCompleted) {
-        removeOnMessageListener(listener);
-        if (isAutoClose) {
-          disconnect();
-        }
         completer.completeError(TimeoutException("Response timed out after 3 seconds"));
       }
     });
-    StunMessage message = await completer.future;
-    removeOnMessageListener(listener);
-    if (isAutoClose) {
-      disconnect();
+    try {
+      StunMessage message = await completer.future;
+      return message;
+    } catch (e) {
+      rethrow;
+    } finally {
+      timer.cancel();
+      removeOnMessageListener(listener);
+      if (isAutoClose) {
+        disconnect();
+      }
     }
-    return message;
   }
 
   onData(Uint8List data) {
