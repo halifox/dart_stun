@@ -43,9 +43,9 @@ abstract class StunClient {
 
   StunClient(this.transport, this.serverHost, this.serverPort, this.localIp, this.localPort, this.stunProtocol);
 
-  int connectTimeoutMilliseconds = 395000;
-  int lookupTimeoutMilliseconds = 3 * 10000;
-  int messageListenerTimeoutMilliseconds = 6 * 10000;
+  int connectTimeoutMilliseconds = 30 * 1000;
+  int lookupTimeoutMilliseconds = 3 * 1000;
+  int messageListenerTimeoutMilliseconds = 3 * 1000;
 
   static StunClient create({
     Transport transport = Transport.udp,
