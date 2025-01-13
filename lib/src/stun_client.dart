@@ -115,7 +115,7 @@ abstract class StunClient {
     try {
       StunMessage message = await completer.future;
       return message;
-    } catch (e) {
+    } catch (e, stackTrace) {
       rethrow;
     } finally {
       timer.cancel();

@@ -132,8 +132,7 @@ class NatChecker {
       return _performPhase2MappingTest(message);
     } on TimeoutException catch (e) {
       return NatMappingBehavior.Block;
-    } catch (e) {
-      print(e);
+    } catch (e, stackTrace) {
       rethrow;
     }
   }
@@ -157,8 +156,7 @@ class NatChecker {
       return _performPhase3MappingTest(message1, message);
     } on TimeoutException catch (e) {
       return NatMappingBehavior.Block;
-    } catch (e) {
-      print(e);
+    } catch (e, stackTrace) {
       rethrow;
     }
   }
@@ -184,8 +182,7 @@ class NatChecker {
       }
     } on TimeoutException catch (e) {
       return NatMappingBehavior.Block;
-    } catch (e) {
-      print(e);
+    } catch (e, stackTrace) {
       rethrow;
     }
   }
@@ -199,8 +196,7 @@ class NatChecker {
       return NatFilteringBehavior.EndpointIndependent;
     } on TimeoutException catch (e) {
       return _performPhase2FilteringTest();
-    } catch (e) {
-      print(e);
+    } catch (e, stackTrace) {
       rethrow;
     }
   }
@@ -216,8 +212,7 @@ class NatChecker {
       return NatFilteringBehavior.AddressDependent;
     } on TimeoutException catch (e) {
       return NatFilteringBehavior.AddressAndPortDependent;
-    } catch (e) {
-      print(e);
+    } catch (e, stackTrace) {
       rethrow;
     }
   }
