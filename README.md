@@ -164,9 +164,11 @@ Call `check` to return the NAT mapping and filtering behaviors:
 Example Output:
 
 ```text
-NAT Mapping Behavior: AddressDependentMapping
-NAT Filtering Behavior: AddressAndPortDependentFiltering
+NAT Mapping Behavior: NatMappingBehavior.EndpointIndependent
+NAT Filtering Behavior: NatFilteringBehavior.AddressAndPortDependent
 ```
+
+![img.png](doc/img.png)
 
 ---
 

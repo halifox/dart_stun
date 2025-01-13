@@ -152,9 +152,11 @@ void main() async {
 示例返回：
 
 ```text
-NAT 映射行为: AddressDependentMapping
-NAT 过滤行为: AddressAndPortDependentFiltering
+NAT 映射行为: NatMappingBehavior.EndpointIndependent
+NAT 过滤行为: NatFilteringBehavior.AddressAndPortDependent
 ```
+
+![img.png](doc/img.png)
 
 ---
 
