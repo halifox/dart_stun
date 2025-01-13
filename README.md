@@ -25,7 +25,7 @@ dependencies:
   stun:
     git:
       url: https://github.com/halifox/dart_stun
-      ref: 2.0.2
+      ref: 2.0.3
 ```
 
 ---
