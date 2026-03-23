@@ -1,0 +1,4 @@
+enum StunBackoffStrategy {
+  linear,
+  exponential,
+}

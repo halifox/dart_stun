@@ -1,0 +1,7 @@
+test_on: vm
+
+tags:
+  network:
+    timeout: 6x
+  nat:
+    timeout: 10x
