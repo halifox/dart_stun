@@ -7,10 +7,35 @@ import '../common/exceptions.dart';
 import '../common/stun_log.dart';
 import 'stun_server_target.dart';
 
+class _ResolvedEndpoints {
+  const _ResolvedEndpoints({
+    required this.endpoints,
+    required this.ttl,
+  });
+
+  final List<StunServerEndpoint> endpoints;
+  final Duration ttl;
+}
+
+class _CachedResolvedEndpoints {
+  const _CachedResolvedEndpoints({
+    required this.resolved,
+    required this.expiresAt,
+  });
+
+  final _ResolvedEndpoints resolved;
+  final DateTime expiresAt;
+}
+
+final Map<String, _CachedResolvedEndpoints> _resolvedEndpointCache =
+    <String, _CachedResolvedEndpoints>{};
+
 Future<List<StunServerEndpoint>> resolveStunTarget(
   StunServerTarget target,
 ) async {
   if (target.isLiteralAddress) {
+    final literalAddress =
+        InternetAddress.tryParse(target.host) ?? InternetAddress(target.host);
     StunLog.log(
       '[dns] literal-endpoint host=${target.host} port=${target.effectivePort} '
       'transport=${target.transport.name}',
@@ -18,11 +43,29 @@ Future<List<StunServerEndpoint>> resolveStunTarget(
     return <StunServerEndpoint>[
       StunServerEndpoint(
         host: target.host,
-        address: InternetAddress(target.host),
+        address: literalAddress,
         port: target.effectivePort,
         transport: target.transport,
       ),
     ];
+  }
+
+  if (target.enableDnsCache) {
+    final cached = _lookupCachedEndpoints(target);
+    if (cached != null) {
+      StunLog.log(
+        '[dns] cache-hit host=${target.host} transport=${target.transport.name} '
+        'endpoints=${cached.length}',
+        category: 'dns',
+        action: 'cache-hit',
+        fields: <String, Object?>{
+          'host': target.host,
+          'transport': target.transport.name,
+          'endpoints': cached.length,
+        },
+      );
+      return cached;
+    }
   }
 
   if (target.originalUri != null &&
@@ -32,33 +75,38 @@ Future<List<StunServerEndpoint>> resolveStunTarget(
       '[dns] discover host=${target.host} transport=${target.transport.name}',
     );
     final discovered = await _discoverFromDns(target);
-    if (discovered.isNotEmpty) {
+    if (discovered.endpoints.isNotEmpty) {
+      _storeResolvedEndpoints(target, discovered);
       StunLog.log(
-        '[dns] discover-result host=${target.host} endpoints=${discovered.length}',
+        '[dns] discover-result host=${target.host} endpoints=${discovered.endpoints.length}',
       );
-      return discovered;
+      return discovered.endpoints;
     }
   }
 
   StunLog.log('[dns] lookup host=${target.host}');
   final addresses = await InternetAddress.lookup(target.host);
-  final endpoints = addresses
-      .map(
-        (address) => StunServerEndpoint(
-          host: target.host,
-          address: address,
-          port: target.effectivePort,
-          transport: target.transport,
-        ),
-      )
-      .toList(growable: false);
+  final resolved = _ResolvedEndpoints(
+    endpoints: addresses
+        .map(
+          (address) => StunServerEndpoint(
+            host: target.host,
+            address: address,
+            port: target.effectivePort,
+            transport: target.transport,
+          ),
+        )
+        .toList(growable: false),
+    ttl: target.dnsCacheTtl,
+  );
+  _storeResolvedEndpoints(target, resolved);
   StunLog.log(
     '[dns] lookup-result host=${target.host} addresses=${addresses.length}',
   );
-  return endpoints;
+  return resolved.endpoints;
 }
 
-Future<List<StunServerEndpoint>> _discoverFromDns(
+Future<_ResolvedEndpoints> _discoverFromDns(
   StunServerTarget target,
 ) async {
   final resolver = _DnsResolver(
@@ -70,6 +118,11 @@ Future<List<StunServerEndpoint>> _discoverFromDns(
     '[dns] naptr host=${target.host} records=${naptrRecords.length}',
   );
   final endpoints = <StunServerEndpoint>[];
+  var ttl = target.dnsCacheTtl;
+  ttl = _minDnsTtl(
+    ttl,
+    naptrRecords.map((record) => Duration(seconds: record.ttl)),
+  );
 
   for (final naptr in _selectNaptrRecords(target, naptrRecords)) {
     if (naptr.flags.toLowerCase() == 's') {
@@ -78,6 +131,10 @@ Future<List<StunServerEndpoint>> _discoverFromDns(
         continue;
       }
       final srvRecords = await resolver.lookupSrv(naptr.replacement);
+      ttl = _minDnsTtl(
+        ttl,
+        srvRecords.map((record) => Duration(seconds: record.ttl)),
+      );
       StunLog.log(
         '[dns] srv name=${naptr.replacement} transport=${srvTransport.name} '
         'records=${srvRecords.length}',
@@ -92,12 +149,19 @@ Future<List<StunServerEndpoint>> _discoverFromDns(
     }
   }
   if (endpoints.isNotEmpty) {
-    return endpoints;
+    return _ResolvedEndpoints(
+      endpoints: List.unmodifiable(endpoints),
+      ttl: ttl,
+    );
   }
 
   final fallbackServiceNames = _serviceNamesFor(target);
   for (final serviceName in fallbackServiceNames) {
     final srvRecords = await resolver.lookupSrv(serviceName.name);
+    ttl = _minDnsTtl(
+      ttl,
+      srvRecords.map((record) => Duration(seconds: record.ttl)),
+    );
     StunLog.log(
       '[dns] srv-fallback name=${serviceName.name} '
       'transport=${serviceName.transport.name} records=${srvRecords.length}',
@@ -110,7 +174,10 @@ Future<List<StunServerEndpoint>> _discoverFromDns(
       ),
     );
   }
-  return endpoints;
+  return _ResolvedEndpoints(
+    endpoints: List.unmodifiable(endpoints),
+    ttl: ttl,
+  );
 }
 
 Iterable<_NaptrRecord> _selectNaptrRecords(
@@ -184,6 +251,51 @@ Future<List<StunServerEndpoint>> _srvRecordsToEndpoints({
     );
   }
   return endpoints;
+}
+
+List<StunServerEndpoint>? _lookupCachedEndpoints(StunServerTarget target) {
+  final entry = _resolvedEndpointCache[_dnsCacheKey(target)];
+  if (entry == null) {
+    return null;
+  }
+  if (DateTime.now().isAfter(entry.expiresAt)) {
+    _resolvedEndpointCache.remove(_dnsCacheKey(target));
+    return null;
+  }
+  return entry.resolved.endpoints;
+}
+
+void _storeResolvedEndpoints(
+  StunServerTarget target,
+  _ResolvedEndpoints resolved,
+) {
+  if (!target.enableDnsCache || resolved.endpoints.isEmpty) {
+    return;
+  }
+  final expiresAt = DateTime.now().add(resolved.ttl);
+  _resolvedEndpointCache[_dnsCacheKey(target)] = _CachedResolvedEndpoints(
+    resolved: resolved,
+    expiresAt: expiresAt,
+  );
+}
+
+String _dnsCacheKey(StunServerTarget target) {
+  final servers = target.dnsServers.map((server) => server.address).join(',');
+  return '${target.host}|${target.effectivePort}|${target.transport.name}|'
+      '${target.enableDnsDiscovery}|$servers';
+}
+
+Duration _minDnsTtl(Duration fallback, Iterable<Duration> values) {
+  var current = fallback;
+  for (final value in values) {
+    if (value <= Duration.zero) {
+      continue;
+    }
+    if (value < current) {
+      current = value;
+    }
+  }
+  return current;
 }
 
 Transport? _transportFromNaptrService(String service) {
@@ -375,6 +487,7 @@ _SrvRecord _parseSrvRecord(_DnsRecord record) {
     weight: weight,
     port: port,
     target: target,
+    ttl: record.ttl,
   );
 }
 
@@ -401,6 +514,7 @@ _NaptrRecord _parseNaptrRecord(_DnsRecord record) {
     service: service.value,
     regexp: regexp.value,
     replacement: replacement,
+    ttl: record.ttl,
   );
 }
 
@@ -492,12 +606,14 @@ class _SrvRecord {
     required this.weight,
     required this.port,
     required this.target,
+    required this.ttl,
   });
 
   final int priority;
   final int weight;
   final int port;
   final String target;
+  final int ttl;
 }
 
 class _NaptrRecord {
@@ -508,6 +624,7 @@ class _NaptrRecord {
     required this.service,
     required this.regexp,
     required this.replacement,
+    required this.ttl,
   });
 
   final int order;
@@ -516,6 +633,7 @@ class _NaptrRecord {
   final String service;
   final String regexp;
   final String replacement;
+  final int ttl;
 }
 
 class _DecodedName {

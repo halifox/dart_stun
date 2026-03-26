@@ -19,6 +19,8 @@ class StunServerTarget {
     this.transport = Transport.udp,
     this.originalUri,
     this.enableDnsDiscovery = true,
+    this.enableDnsCache = true,
+    this.dnsCacheTtl = const Duration(minutes: 1),
     this.dnsServers = const <InternetAddress>[],
   });
 
@@ -26,6 +28,8 @@ class StunServerTarget {
     String uri, {
     List<InternetAddress> dnsServers = const <InternetAddress>[],
     bool enableDnsDiscovery = true,
+    bool enableDnsCache = true,
+    Duration dnsCacheTtl = const Duration(minutes: 1),
   }) {
     final normalized = uri.contains('://') ? uri : uri.replaceFirst(':', '://');
     final parsed = Uri.parse(normalized);
@@ -50,6 +54,8 @@ class StunServerTarget {
       transport: transport,
       originalUri: uri,
       enableDnsDiscovery: enableDnsDiscovery,
+      enableDnsCache: enableDnsCache,
+      dnsCacheTtl: dnsCacheTtl,
       dnsServers: List.unmodifiable(dnsServers),
     );
   }
@@ -59,6 +65,8 @@ class StunServerTarget {
   final Transport transport;
   final String? originalUri;
   final bool enableDnsDiscovery;
+  final bool enableDnsCache;
+  final Duration dnsCacheTtl;
   final List<InternetAddress> dnsServers;
 
   int get effectivePort => port ?? transport.defaultPort;
@@ -73,6 +81,8 @@ class StunServerTarget {
     Transport? transport,
     String? originalUri,
     bool? enableDnsDiscovery,
+    bool? enableDnsCache,
+    Duration? dnsCacheTtl,
     List<InternetAddress>? dnsServers,
   }) {
     return StunServerTarget(
@@ -81,6 +91,8 @@ class StunServerTarget {
       transport: transport ?? this.transport,
       originalUri: originalUri ?? this.originalUri,
       enableDnsDiscovery: enableDnsDiscovery ?? this.enableDnsDiscovery,
+      enableDnsCache: enableDnsCache ?? this.enableDnsCache,
+      dnsCacheTtl: dnsCacheTtl ?? this.dnsCacheTtl,
       dnsServers: dnsServers ?? this.dnsServers,
     );
   }
@@ -100,10 +112,56 @@ class StunServerEndpoint {
     required this.transport,
   });
 
+  factory StunServerEndpoint.fromJson(Map<String, Object?> json) {
+    final rawAddress = json['address'] as String;
+    return StunServerEndpoint(
+      host: json['host'] as String,
+      address:
+          InternetAddress.tryParse(rawAddress) ?? InternetAddress(rawAddress),
+      port: json['port'] as int,
+      transport: Transport.values.byName(json['transport'] as String),
+    );
+  }
+
   final String host;
   final InternetAddress address;
   final int port;
   final Transport transport;
+
+  StunServerEndpoint copyWith({
+    String? host,
+    InternetAddress? address,
+    int? port,
+    Transport? transport,
+  }) {
+    return StunServerEndpoint(
+      host: host ?? this.host,
+      address: address ?? this.address,
+      port: port ?? this.port,
+      transport: transport ?? this.transport,
+    );
+  }
+
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      'host': host,
+      'address': address.address,
+      'port': port,
+      'transport': transport.name,
+    };
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is StunServerEndpoint &&
+        other.host == host &&
+        other.port == port &&
+        other.transport == transport &&
+        other.address.address == address.address;
+  }
+
+  @override
+  int get hashCode => Object.hash(host, address.address, port, transport);
 
   @override
   String toString() {

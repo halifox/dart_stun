@@ -47,6 +47,15 @@ class StunTransportAddress {
     required this.port,
   });
 
+  factory StunTransportAddress.fromJson(Map<String, Object?> json) {
+    final rawAddress = json['address'] as String;
+    return StunTransportAddress(
+      address:
+          InternetAddress.tryParse(rawAddress) ?? InternetAddress(rawAddress),
+      port: json['port'] as int,
+    );
+  }
+
   final InternetAddress address;
   final int port;
 
@@ -55,6 +64,14 @@ class StunTransportAddress {
   StunAddressFamily get family => address.type == InternetAddressType.IPv6
       ? StunAddressFamily.ipv6
       : StunAddressFamily.ipv4;
+
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      'address': address.address,
+      'port': port,
+      'family': family.name,
+    };
+  }
 
   @override
   String toString() {

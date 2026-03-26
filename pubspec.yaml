@@ -1,6 +1,6 @@
 name: stun
 description: "Pure Dart STUN client, message model, and NAT behavior detector."
-version: 3.0.0
+version: 3.0.1
 homepage: https://github.com/halifox/dart_stun
 
 environment:

@@ -38,9 +38,9 @@ void main() {
         serverHost: '127.0.0.1',
         serverPort: server.port,
         requestTimeout: const Duration(seconds: 1),
-        initialRto: const Duration(milliseconds: 100),
-        maxRetransmissions: 1,
-        responseTimeoutMultiplier: 1,
+        initialRto: const Duration(milliseconds: 200),
+        maxRetransmissions: 2,
+        responseTimeoutMultiplier: 2,
       );
 
       final lines = await capturePrints(() async {
@@ -216,6 +216,62 @@ void main() {
         isTrue,
       );
     });
+
+    test('falls back to later resolved endpoints after a timeout', () async {
+      final liveServer = await _LocalStunUdpServer.bind();
+      addTearDown(liveServer.close);
+      final deadPort = await allocateUnusedPort();
+      final dnsServer = await _ProgrammableLocalDnsServer.bind(
+        hosts: <String, List<_SrvAnswer>>{
+          'fallback.test': <_SrvAnswer>[
+            _SrvAnswer(priority: 0, weight: 20, port: deadPort),
+            _SrvAnswer(priority: 0, weight: 10, port: liveServer.port),
+          ],
+        },
+      );
+      addTearDown(dnsServer.close);
+
+      final client = StunClient.fromUri(
+        'stun:fallback.test',
+        dnsServers: <InternetAddress>[InternetAddress.loopbackIPv4],
+        requestTimeout: const Duration(milliseconds: 200),
+        initialRto: const Duration(milliseconds: 80),
+        maxRetransmissions: 2,
+        responseTimeoutMultiplier: 2,
+      );
+
+      final result = await client.sendForResult(client.createBindingRequest());
+
+      expect(result.isSuccess, isTrue);
+      expect(result.endpoint.port, equals(liveServer.port));
+      expect(result.attemptedEndpoints, hasLength(2));
+    });
+
+    test('caches DNS discovery results', () async {
+      final dnsServer = await _ProgrammableLocalDnsServer.bind(
+        hosts: <String, List<_SrvAnswer>>{
+          'cache.test': <_SrvAnswer>[
+            const _SrvAnswer(priority: 0, weight: 10, port: 41000),
+          ],
+        },
+      );
+      addTearDown(dnsServer.close);
+
+      final target = StunServerTarget.uri(
+        'stun:cache.test',
+        dnsServers: <InternetAddress>[InternetAddress.loopbackIPv4],
+        enableDnsCache: true,
+        dnsCacheTtl: const Duration(seconds: 30),
+      );
+
+      final first = await resolveStunTarget(target);
+      final firstQueryCount = dnsServer.queryCount;
+      final second = await resolveStunTarget(target);
+
+      expect(first, isNotEmpty);
+      expect(second, isNotEmpty);
+      expect(dnsServer.queryCount, equals(firstQueryCount));
+    });
   });
 }
 
@@ -232,6 +288,13 @@ Future<List<String>> capturePrints(FutureOr<void> Function() action) async {
     ),
   );
   return lines;
+}
+
+Future<int> allocateUnusedPort() async {
+  final socket = await RawDatagramSocket.bind(InternetAddress.loopbackIPv4, 0);
+  final port = socket.port;
+  socket.close();
+  return port;
 }
 
 class _LocalStunUdpServer {
@@ -326,6 +389,77 @@ class _LocalDnsServer {
   }
 }
 
+class _SrvAnswer {
+  const _SrvAnswer({
+    required this.priority,
+    required this.weight,
+    required this.port,
+  });
+
+  final int priority;
+  final int weight;
+  final int port;
+}
+
+class _ProgrammableLocalDnsServer {
+  _ProgrammableLocalDnsServer._(
+    this._socket,
+    this._subscription,
+    this.hosts,
+  );
+
+  final RawDatagramSocket _socket;
+  final StreamSubscription<RawSocketEvent> _subscription;
+  final Map<String, List<_SrvAnswer>> hosts;
+  int queryCount = 0;
+
+  static Future<_ProgrammableLocalDnsServer> bind({
+    required Map<String, List<_SrvAnswer>> hosts,
+  }) async {
+    final socket =
+        await RawDatagramSocket.bind(InternetAddress.loopbackIPv4, 53);
+    late final _ProgrammableLocalDnsServer server;
+    late final StreamSubscription<RawSocketEvent> subscription;
+    subscription = socket.listen((event) {
+      if (event != RawSocketEvent.read) {
+        return;
+      }
+      final datagram = socket.receive();
+      if (datagram == null) {
+        return;
+      }
+      server.queryCount += 1;
+      final query = datagram.data;
+      final qName = _readQuestionName(query);
+      final response = switch (qName) {
+        final String host when server.hosts.containsKey(host) =>
+          _buildDnsResponse(query, answers: const <Uint8List>[]),
+        final String srvName
+            when srvName.startsWith('_stun._udp.') &&
+                server.hosts.containsKey(
+                  srvName.replaceFirst('_stun._udp.', ''),
+                ) =>
+          _buildDnsResponse(
+            query,
+            answers: server.hosts[srvName.replaceFirst('_stun._udp.', '')]!
+                .map(_buildProgrammableSrvAnswer)
+                .toList(growable: false),
+          ),
+        _ =>
+          _buildDnsResponse(query, flags: 0x8183, answers: const <Uint8List>[]),
+      };
+      socket.send(response, datagram.address, datagram.port);
+    });
+    server = _ProgrammableLocalDnsServer._(socket, subscription, hosts);
+    return server;
+  }
+
+  Future<void> close() async {
+    await _subscription.cancel();
+    _socket.close();
+  }
+}
+
 String _readQuestionName(Uint8List query) {
   final labels = <String>[];
   var offset = 12;
@@ -379,6 +513,23 @@ Uint8List _buildSrvAnswer({
     ..add(_uint16(rdataBytes.length))
     ..add(rdataBytes);
   return answer.takeBytes();
+}
+
+Uint8List _buildProgrammableSrvAnswer(_SrvAnswer answer) {
+  final rdata = BytesBuilder(copy: false)
+    ..add(_uint16(answer.priority))
+    ..add(_uint16(answer.weight))
+    ..add(_uint16(answer.port))
+    ..add(_encodeDomain('127.0.0.1'));
+  final rdataBytes = rdata.takeBytes();
+  final response = BytesBuilder(copy: false)
+    ..add(_uint16(0xc00c))
+    ..add(_uint16(33))
+    ..add(_uint16(1))
+    ..add(_uint32(60))
+    ..add(_uint16(rdataBytes.length))
+    ..add(rdataBytes);
+  return response.takeBytes();
 }
 
 Uint8List _encodeDomain(String name) {

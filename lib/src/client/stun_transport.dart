@@ -24,6 +24,8 @@ class StunInboundPacket {
 
 class StunUdpBinding {
   StunUdpBinding._(this._socket) {
+    _socket.readEventsEnabled = true;
+    _socket.writeEventsEnabled = false;
     _subscription = _socket.listen(_onSocketEvent);
   }
 
@@ -123,6 +125,10 @@ class StunUdpBinding {
       if (datagram == null) {
         break;
       }
+      StunLog.log(
+        '[stun] udp-read bytes=${datagram.data.length} '
+        'remote=${datagram.address.address}:${datagram.port}',
+      );
       try {
         final message = StunMessage.decode(datagram.data);
         StunLog.log(
@@ -149,7 +155,7 @@ class StunUdpBinding {
           }
         }
         _waiters.remove(key);
-      } on StunException catch (error) {
+      } catch (error) {
         StunLog.log(
           '[stun] udp-parse-failed bytes=${datagram.data.length} '
           'remote=${datagram.address.address}:${datagram.port} error=$error',

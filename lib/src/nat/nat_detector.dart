@@ -7,6 +7,7 @@ import '../client/stun_discovery.dart';
 import '../client/stun_server_target.dart';
 import '../client/stun_transport.dart';
 import '../common/binary_utils.dart';
+import '../common/stun_capabilities.dart';
 import '../common/exceptions.dart';
 import '../common/stun_log.dart';
 import '../message/stun_message.dart';
@@ -40,12 +41,6 @@ enum NatProbeStatus {
   undetermined,
 }
 
-enum NatCapabilitySupport {
-  supported,
-  unsupported,
-  unknown,
-}
-
 enum NatLegacyType {
   openInternet,
   fullCone,
@@ -55,45 +50,6 @@ enum NatLegacyType {
   symmetricUdpFirewall,
   udpBlocked,
   unknown,
-}
-
-class StunServerCapabilities {
-  const StunServerCapabilities({
-    this.otherAddress = NatCapabilitySupport.unknown,
-    this.responseOrigin = NatCapabilitySupport.unknown,
-    this.changeRequest = NatCapabilitySupport.unknown,
-    this.responsePort = NatCapabilitySupport.unknown,
-    this.padding = NatCapabilitySupport.unknown,
-  });
-
-  final NatCapabilitySupport otherAddress;
-  final NatCapabilitySupport responseOrigin;
-  final NatCapabilitySupport changeRequest;
-  final NatCapabilitySupport responsePort;
-  final NatCapabilitySupport padding;
-
-  StunServerCapabilities copyWith({
-    NatCapabilitySupport? otherAddress,
-    NatCapabilitySupport? responseOrigin,
-    NatCapabilitySupport? changeRequest,
-    NatCapabilitySupport? responsePort,
-    NatCapabilitySupport? padding,
-  }) {
-    return StunServerCapabilities(
-      otherAddress: otherAddress ?? this.otherAddress,
-      responseOrigin: responseOrigin ?? this.responseOrigin,
-      changeRequest: changeRequest ?? this.changeRequest,
-      responsePort: responsePort ?? this.responsePort,
-      padding: padding ?? this.padding,
-    );
-  }
-
-  @override
-  String toString() {
-    return 'StunServerCapabilities(otherAddress: $otherAddress, '
-        'responseOrigin: $responseOrigin, changeRequest: $changeRequest, '
-        'responsePort: $responsePort, padding: $padding)';
-  }
 }
 
 class NatBehaviorReport {
@@ -114,6 +70,42 @@ class NatBehaviorReport {
     required this.warnings,
   });
 
+  factory NatBehaviorReport.fromJson(Map<String, Object?> json) {
+    return NatBehaviorReport(
+      reachability:
+          NatReachability.values.byName(json['reachability'] as String),
+      serverEndpoint: StunServerEndpoint.fromJson(
+        Map<String, Object?>.from(
+            json['serverEndpoint'] as Map<Object?, Object?>),
+      ),
+      localAddress: _transportAddressFromJson(json['localAddress']),
+      mappedAddress: _transportAddressFromJson(json['mappedAddress']),
+      isNatted: json['isNatted'] as bool?,
+      mappingBehavior:
+          NatMappingBehavior.values.byName(json['mappingBehavior'] as String),
+      filteringBehavior: NatFilteringBehavior.values
+          .byName(json['filteringBehavior'] as String),
+      bindingLifetimeEstimate: switch (json['bindingLifetimeEstimateMs']) {
+        final int milliseconds => Duration(milliseconds: milliseconds),
+        _ => null,
+      },
+      hairpinning: NatProbeStatus.values.byName(json['hairpinning'] as String),
+      fragmentHandling:
+          NatProbeStatus.values.byName(json['fragmentHandling'] as String),
+      algDetected: json['algDetected'] as bool?,
+      serverCapabilities: StunServerCapabilities.fromJson(
+        Map<String, Object?>.from(
+          json['serverCapabilities'] as Map<Object?, Object?>,
+        ),
+      ),
+      legacyNatType:
+          NatLegacyType.values.byName(json['legacyNatType'] as String),
+      warnings: List<String>.unmodifiable(
+        (json['warnings'] as List<Object?>).cast<String>(),
+      ),
+    );
+  }
+
   final NatReachability reachability;
   final StunServerEndpoint serverEndpoint;
   final StunTransportAddress? localAddress;
@@ -128,6 +120,25 @@ class NatBehaviorReport {
   final StunServerCapabilities serverCapabilities;
   final NatLegacyType legacyNatType;
   final List<String> warnings;
+
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      'reachability': reachability.name,
+      'serverEndpoint': serverEndpoint.toJson(),
+      'localAddress': localAddress?.toJson(),
+      'mappedAddress': mappedAddress?.toJson(),
+      'isNatted': isNatted,
+      'mappingBehavior': mappingBehavior.name,
+      'filteringBehavior': filteringBehavior.name,
+      'bindingLifetimeEstimateMs': bindingLifetimeEstimate?.inMilliseconds,
+      'hairpinning': hairpinning.name,
+      'fragmentHandling': fragmentHandling.name,
+      'algDetected': algDetected,
+      'serverCapabilities': serverCapabilities.toJson(),
+      'legacyNatType': legacyNatType.name,
+      'warnings': List<String>.from(warnings),
+    };
+  }
 
   @override
   String toString() {
@@ -176,11 +187,18 @@ class NatDetector {
     bool includeFingerprint = true,
     String? software,
     List<InternetAddress> dnsServers = const <InternetAddress>[],
+    bool enableDnsDiscovery = true,
+    bool enableDnsCache = true,
+    Duration dnsCacheTtl = const Duration(minutes: 1),
   }) {
     return NatDetector(
-      target: StunServerTarget.uri(uri, dnsServers: dnsServers).copyWith(
-        transport: Transport.udp,
-      ),
+      target: StunServerTarget.uri(
+        uri,
+        dnsServers: dnsServers,
+        enableDnsDiscovery: enableDnsDiscovery,
+        enableDnsCache: enableDnsCache,
+        dnsCacheTtl: dnsCacheTtl,
+      ).copyWith(transport: Transport.udp),
       localAddress: localIp == null ? null : InternetAddress(localIp),
       localPort: localPort,
       initialRto: initialRto,
@@ -998,4 +1016,13 @@ Future<_LifetimePackets> _awaitLifetimePackets(
     resolveIfDone();
   });
   return completer.future;
+}
+
+StunTransportAddress? _transportAddressFromJson(Object? rawValue) {
+  if (rawValue == null) {
+    return null;
+  }
+  return StunTransportAddress.fromJson(
+    Map<String, Object?>.from(rawValue as Map<Object?, Object?>),
+  );
 }
