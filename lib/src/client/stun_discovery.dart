@@ -30,12 +30,17 @@ class _CachedResolvedEndpoints {
 final Map<String, _CachedResolvedEndpoints> _resolvedEndpointCache =
     <String, _CachedResolvedEndpoints>{};
 
-Future<List<StunServerEndpoint>> resolveStunTarget(
-  StunServerTarget target,
-) async {
+Future<List<StunServerEndpoint>> resolveStunTarget(StunServerTarget target,
+    {InternetAddressType? addressType}) async {
   if (target.isLiteralAddress) {
     final literalAddress =
         InternetAddress.tryParse(target.host) ?? InternetAddress(target.host);
+    if (addressType != null && literalAddress.type != addressType) {
+      throw StunDiscoveryException(
+        'Resolved STUN endpoint for ${target.host} did not match the '
+        'requested address family ${addressType.name}.',
+      );
+    }
     StunLog.log(
       '[dns] literal-endpoint host=${target.host} port=${target.effectivePort} '
       'transport=${target.transport.name}',
@@ -80,7 +85,11 @@ Future<List<StunServerEndpoint>> resolveStunTarget(
       StunLog.log(
         '[dns] discover-result host=${target.host} endpoints=${discovered.endpoints.length}',
       );
-      return discovered.endpoints;
+      return _filterResolvedEndpoints(
+        target: target,
+        endpoints: discovered.endpoints,
+        addressType: addressType,
+      );
     }
   }
 
@@ -103,7 +112,31 @@ Future<List<StunServerEndpoint>> resolveStunTarget(
   StunLog.log(
     '[dns] lookup-result host=${target.host} addresses=${addresses.length}',
   );
-  return resolved.endpoints;
+  return _filterResolvedEndpoints(
+    target: target,
+    endpoints: resolved.endpoints,
+    addressType: addressType,
+  );
+}
+
+List<StunServerEndpoint> _filterResolvedEndpoints({
+  required StunServerTarget target,
+  required List<StunServerEndpoint> endpoints,
+  required InternetAddressType? addressType,
+}) {
+  if (addressType == null) {
+    return endpoints;
+  }
+  final filtered = endpoints
+      .where((endpoint) => endpoint.address.type == addressType)
+      .toList(growable: false);
+  if (filtered.isEmpty) {
+    throw StunDiscoveryException(
+      'No STUN endpoints could be resolved for ${target.host} with address '
+      'family ${addressType.name}.',
+    );
+  }
+  return filtered;
 }
 
 Future<_ResolvedEndpoints> _discoverFromDns(

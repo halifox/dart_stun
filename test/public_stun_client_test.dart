@@ -8,10 +8,12 @@ import 'support/public_test_support.dart';
 
 void main() {
   final summary = PublicStageCollector('baseline');
+  final addressType = selectedPublicAddressType();
+  final familyLabel = selectedPublicIpVersionLabel();
 
   tearDownAll(summary.writeSummary);
 
-  group('public STUN baseline sweep', () {
+  group('public STUN baseline sweep [$familyLabel]', () {
     test('provider catalog is not empty', () {
       expect(publicProviders, isNotEmpty);
     });
@@ -22,6 +24,7 @@ void main() {
 
         final client = StunClient.fromUri(
           provider.uri,
+          addressType: addressType,
           requestTimeout: const Duration(seconds: 3),
           initialRto: const Duration(milliseconds: 300),
           maxRetransmissions: 2,

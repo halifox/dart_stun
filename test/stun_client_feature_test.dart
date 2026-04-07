@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:stun/stun.dart';
+import 'package:stun/src/common/exceptions.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -203,6 +204,70 @@ void main() {
       expect(result.capabilities.responsePort, NatCapabilitySupport.supported);
       expect(result.capabilities.padding, NatCapabilitySupport.supported);
       expect(result.warnings, isEmpty);
+    });
+
+    test('filters resolved endpoints to the requested IPv4 family', () async {
+      final client = StunClient(
+        target: const StunServerTarget(
+          host: 'localhost',
+          port: 3478,
+          transport: Transport.udp,
+          enableDnsDiscovery: false,
+          enableDnsCache: false,
+        ),
+        addressType: InternetAddressType.IPv4,
+      );
+
+      final endpoints = await client.resolveEndpoints();
+
+      expect(endpoints, isNotEmpty);
+      expect(
+        endpoints.every(
+          (endpoint) => endpoint.address.type == InternetAddressType.IPv4,
+        ),
+        isTrue,
+      );
+    });
+
+    test('filters resolved endpoints to the requested IPv6 family', () async {
+      final client = StunClient(
+        target: const StunServerTarget(
+          host: 'localhost',
+          port: 3478,
+          transport: Transport.udp,
+          enableDnsDiscovery: false,
+          enableDnsCache: false,
+        ),
+        addressType: InternetAddressType.IPv6,
+      );
+
+      final endpoints = await client.resolveEndpoints();
+
+      expect(endpoints, isNotEmpty);
+      expect(
+        endpoints.every(
+          (endpoint) => endpoint.address.type == InternetAddressType.IPv6,
+        ),
+        isTrue,
+      );
+    });
+
+    test('throws when the requested address family is unavailable', () async {
+      final client = StunClient(
+        target: const StunServerTarget(
+          host: '127.0.0.1',
+          port: 3478,
+          transport: Transport.udp,
+          enableDnsDiscovery: false,
+          enableDnsCache: false,
+        ),
+        addressType: InternetAddressType.IPv6,
+      );
+
+      await expectLater(
+        client.resolveEndpoints(),
+        throwsA(isA<StunDiscoveryException>()),
+      );
     });
 
     test('emits structured logger events through callback', () async {

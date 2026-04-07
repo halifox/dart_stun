@@ -157,6 +157,7 @@ class NatDetector {
   NatDetector({
     required StunServerTarget target,
     this.localAddress,
+    this.addressType,
     this.localPort = 0,
     this.initialRto = const Duration(milliseconds: 500),
     this.backoffStrategy = StunBackoffStrategy.linear,
@@ -169,11 +170,18 @@ class NatDetector {
     this.fragmentPaddingBytes = 1400,
     this.includeFingerprint = true,
     this.software = 'dart_stun',
-  }) : target = target.copyWith(transport: Transport.udp);
+  })  : assert(
+          addressType == null ||
+              localAddress == null ||
+              localAddress.type == addressType,
+          'localAddress must match addressType when both are provided.',
+        ),
+        target = target.copyWith(transport: Transport.udp);
 
   factory NatDetector.fromUri(
     String uri, {
     String? localIp,
+    InternetAddressType? addressType,
     int localPort = 0,
     Duration initialRto = const Duration(milliseconds: 200),
     StunBackoffStrategy backoffStrategy = StunBackoffStrategy.linear,
@@ -200,6 +208,7 @@ class NatDetector {
         dnsCacheTtl: dnsCacheTtl,
       ).copyWith(transport: Transport.udp),
       localAddress: localIp == null ? null : InternetAddress(localIp),
+      addressType: addressType,
       localPort: localPort,
       initialRto: initialRto,
       backoffStrategy: backoffStrategy,
@@ -217,6 +226,7 @@ class NatDetector {
 
   final StunServerTarget target;
   final InternetAddress? localAddress;
+  final InternetAddressType? addressType;
   final int localPort;
   final Duration initialRto;
   final StunBackoffStrategy backoffStrategy;
@@ -389,8 +399,10 @@ class NatDetector {
   }
 
   Future<StunServerEndpoint> _resolveUdpEndpoint() async {
-    final endpoints =
-        await resolveStunTarget(target.copyWith(transport: Transport.udp));
+    final endpoints = await resolveStunTarget(
+      target.copyWith(transport: Transport.udp),
+      addressType: addressType ?? localAddress?.type,
+    );
     if (endpoints.isEmpty) {
       throw StunDiscoveryException(
         'No UDP STUN endpoint could be resolved for ${target.host}.',

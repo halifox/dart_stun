@@ -13,6 +13,12 @@ enum PublicResultStatus {
   protocolFailure,
 }
 
+enum PublicIpVersion {
+  auto,
+  ipv4,
+  ipv6;
+}
+
 class PublicStageResult {
   const PublicStageResult._({
     required this.status,
@@ -115,6 +121,33 @@ class PublicStageCollector {
       );
     }
   }
+}
+
+PublicIpVersion selectedPublicIpVersion() {
+  final rawValue =
+      Platform.environment['STUN_PUBLIC_IP_VERSION']?.trim().toLowerCase();
+  return switch (rawValue) {
+    null || '' || 'auto' => PublicIpVersion.auto,
+    'ipv4' || 'v4' => PublicIpVersion.ipv4,
+    'ipv6' || 'v6' => PublicIpVersion.ipv6,
+    _ => throw ArgumentError.value(
+        rawValue,
+        'STUN_PUBLIC_IP_VERSION',
+        'Expected auto, ipv4, or ipv6.',
+      ),
+  };
+}
+
+InternetAddressType? selectedPublicAddressType() {
+  return switch (selectedPublicIpVersion()) {
+    PublicIpVersion.auto => null,
+    PublicIpVersion.ipv4 => InternetAddressType.IPv4,
+    PublicIpVersion.ipv6 => InternetAddressType.IPv6,
+  };
+}
+
+String selectedPublicIpVersionLabel() {
+  return selectedPublicIpVersion().name;
 }
 
 StunTransportAddress? mappedAddressFrom(StunMessage message) {
@@ -324,10 +357,12 @@ void writeProviderStart({
   required String stage,
   required PublicProvider provider,
 }) {
+  final family = selectedPublicIpVersionLabel();
   stdout.writeln(
     '[$stage][PROVIDER] ${provider.id} '
     'uri=${provider.uri} '
-    'endpoint=${provider.endpointKey}',
+    'endpoint=${provider.endpointKey} '
+    'addressFamily=$family',
   );
   stdout.writeln('[$stage][NOTES] ${provider.id} ${provider.notes}');
 }

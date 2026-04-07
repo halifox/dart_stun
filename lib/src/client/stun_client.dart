@@ -314,6 +314,7 @@ class StunClient {
   StunClient({
     required this.target,
     this.localAddress,
+    this.addressType,
     this.localPort = 0,
     this.stunProtocol = StunProtocol.rfc5389,
     this.credentials,
@@ -328,13 +329,19 @@ class StunClient {
     this.maxAlternateServerRedirects = 2,
     this.enableEndpointFallback = true,
     this.onBadCertificate,
-  });
+  }) : assert(
+          addressType == null ||
+              localAddress == null ||
+              localAddress.type == addressType,
+          'localAddress must match addressType when both are provided.',
+        );
 
   factory StunClient.create({
     required Transport transport,
     required String serverHost,
     int? serverPort,
     String? localIp,
+    InternetAddressType? addressType,
     int localPort = 0,
     StunProtocol stunProtocol = StunProtocol.rfc5389,
     StunCredentials? credentials,
@@ -365,6 +372,7 @@ class StunClient {
         dnsServers: dnsServers,
       ),
       localAddress: localIp == null ? null : InternetAddress(localIp),
+      addressType: addressType,
       localPort: localPort,
       stunProtocol: stunProtocol,
       credentials: credentials,
@@ -385,6 +393,7 @@ class StunClient {
   factory StunClient.fromUri(
     String uri, {
     String? localIp,
+    InternetAddressType? addressType,
     int localPort = 0,
     StunProtocol stunProtocol = StunProtocol.rfc5389,
     StunCredentials? credentials,
@@ -413,6 +422,7 @@ class StunClient {
         dnsCacheTtl: dnsCacheTtl,
       ),
       localAddress: localIp == null ? null : InternetAddress(localIp),
+      addressType: addressType,
       localPort: localPort,
       stunProtocol: stunProtocol,
       credentials: credentials,
@@ -432,6 +442,7 @@ class StunClient {
 
   final StunServerTarget target;
   final InternetAddress? localAddress;
+  final InternetAddressType? addressType;
   final int localPort;
   final StunProtocol stunProtocol;
   final StunCredentials? credentials;
@@ -489,7 +500,10 @@ class StunClient {
   }
 
   Future<List<StunServerEndpoint>> resolveEndpoints() {
-    return resolveStunTarget(target);
+    return resolveStunTarget(
+      target,
+      addressType: addressType ?? localAddress?.type,
+    );
   }
 
   Future<StunServerEndpoint> resolveEndpoint() async {
@@ -588,6 +602,7 @@ class StunClient {
         : <StunServerEndpoint>[endpoint];
     final candidates = _candidateEndpoints(resolvedEndpoints)
         .where((candidate) => candidate.transport == Transport.udp)
+        .where(_supportsConfiguredAddressType)
         .toList(growable: false);
     if (candidates.isEmpty) {
       throw const StunUnsupportedException(
@@ -608,6 +623,12 @@ class StunClient {
       binding: binding,
       endpoints: compatibleEndpoints,
     );
+  }
+
+  bool _supportsConfiguredAddressType(StunServerEndpoint endpoint) {
+    final effectiveAddressType = addressType ?? localAddress?.type;
+    return effectiveAddressType == null ||
+        endpoint.address.type == effectiveAddressType;
   }
 
   Future<StunCapabilityProbeResult> probeServerCapabilities({

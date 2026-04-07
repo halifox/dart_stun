@@ -11,6 +11,8 @@ void main() {
   final summary = PublicStageCollector('nat');
   final rfc3489Summary = PublicStageCollector('rfc3489');
   final rfc5780Summary = PublicStageCollector('rfc5780');
+  final addressType = selectedPublicAddressType();
+  final familyLabel = selectedPublicIpVersionLabel();
 
   tearDownAll(() {
     summary.writeSummary();
@@ -18,7 +20,7 @@ void main() {
     rfc5780Summary.writeSummary();
   });
 
-  group('public NAT detector sweep', () {
+  group('public NAT detector sweep [$familyLabel]', () {
     test('NAT provider catalog is not empty', () {
       expect(providers, isNotEmpty);
     });
@@ -29,6 +31,7 @@ void main() {
 
         final detector = NatDetector.fromUri(
           provider.uri,
+          addressType: addressType,
           requestTimeout: const Duration(seconds: 1),
           initialRto: const Duration(milliseconds: 200),
           maxRetransmissions: 2,

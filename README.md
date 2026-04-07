@@ -101,6 +101,7 @@ import 'package:stun/stun.dart';
 Future<void> main() async {
   final client = StunClient.fromUri(
     'stun:global.stun.twilio.com:3478?transport=udp',
+    addressType: InternetAddressType.IPv6,
   );
 
   final endpoint = await client.resolveEndpoint();
@@ -115,6 +116,29 @@ Future<void> main() async {
 }
 ```
 
+如果你希望显式选择地址族，而不是跟随系统 DNS 返回顺序，可以传入 `addressType`：
+
+```dart
+import 'dart:io';
+import 'package:stun/stun.dart';
+
+Future<void> main() async {
+  final client = StunClient.fromUri(
+    'stun:stun.cloudflare.com:3478?transport=udp',
+    addressType: InternetAddressType.IPv4,
+  );
+
+  final endpoint = await client.resolveEndpoint();
+  print('ipv4 endpoint: $endpoint');
+}
+```
+
+当 `addressType` 被设置为 `InternetAddressType.IPv4` 或 `InternetAddressType.IPv6` 时：
+
+- `resolveEndpoints()` / `resolveEndpoint()` 只会返回匹配地址族的端点
+- UDP 会话会按该地址族创建 socket
+- 若目标没有匹配地址族的可用地址，会抛出 `StunDiscoveryException`
+
 ### 3. 直接做 NAT 行为探测
 
 如果你不是只想拿到映射地址，而是要分析 NAT 类型、过滤行为、绑定生命周期等，可以使用 `NatDetector`：
@@ -125,6 +149,7 @@ import 'package:stun/stun.dart';
 Future<void> main() async {
   final detector = NatDetector.fromUri(
     'stun:stun.cloudflare.com:3478?transport=udp',
+    addressType: InternetAddressType.IPv6,
     requestTimeout: const Duration(seconds: 1),
     initialRto: const Duration(milliseconds: 200),
     backoffStrategy: StunBackoffStrategy.exponential,
@@ -295,6 +320,8 @@ final client3 = StunClient.fromUri(
   目标 STUN 服务器描述
 - `localAddress`
   指定本地绑定地址，适合多网卡环境或需要固定出口 IP 的场景
+- `addressType`
+  显式限制使用 `InternetAddressType.IPv4` 或 `InternetAddressType.IPv6`；若同时传入 `localAddress`，两者地址族必须一致
 - `localPort`
   指定本地端口，默认为 `0`，表示系统自动分配
 - `stunProtocol`
@@ -363,6 +390,8 @@ final response = await client.sendAndAwait(
 final endpoints = await client.resolveEndpoints();
 final endpoint = await client.resolveEndpoint();
 ```
+
+如果创建 `StunClient` 时传入了 `addressType`，这里返回的端点列表会先按地址族过滤。
 
 #### `encodeMessage()` / `parseMessage()`
 
@@ -587,6 +616,7 @@ import 'package:stun/stun.dart';
 Future<void> main() async {
   final detector = NatDetector.fromUri(
     'stun:stun.cloudflare.com:3478?transport=udp',
+    addressType: InternetAddressType.IPv4,
     requestTimeout: const Duration(seconds: 1),
     initialBindingLifetimeProbe: const Duration(milliseconds: 300),
     maxBindingLifetimeProbe: const Duration(seconds: 1),
@@ -610,6 +640,26 @@ final report2 = await detector.detect();
 
 - `NatChecker` 是 `NatDetector` 的类型别名
 - 新代码建议直接使用 `NatDetector`
+
+### 地址族选择
+
+`NatDetector` 同样支持通过 `addressType` 显式指定地址族：
+
+```dart
+import 'dart:io';
+import 'package:stun/stun.dart';
+
+final detector = NatDetector.fromUri(
+  'stun:stun.telnyx.com:3478?transport=udp',
+  addressType: InternetAddressType.IPv6,
+);
+```
+
+这会影响：
+
+- 目标解析时只保留匹配的 `IPv4` 或 `IPv6` endpoint
+- baseline、filtering、binding lifetime、hairpinning 等 UDP 探针所使用的本地 socket 地址族
+- 无匹配地址时的失败模式，直接表现为 `StunDiscoveryException`
 
 ### `NatBehaviorReport` 字段说明
 
@@ -916,6 +966,22 @@ try {
 ```bash
 dart test -r expanded
 ```
+
+如果你要运行公网互操作测试并显式指定地址族，可以设置环境变量 `STUN_PUBLIC_IP_VERSION`：
+
+```bash
+STUN_PUBLIC_IP_VERSION=ipv4 dart test test/public_stun_client_test.dart -r expanded
+STUN_PUBLIC_IP_VERSION=ipv6 dart test test/public_nat_detector_test.dart -r expanded
+```
+
+支持的取值有：
+
+- `auto`
+  默认行为，跟随当前解析结果
+- `ipv4`
+  只测试 IPv4 endpoint
+- `ipv6`
+  只测试 IPv6 endpoint
 
 测试结果会将公共互操作结果分为以下几类：
 
