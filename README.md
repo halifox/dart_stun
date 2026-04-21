@@ -35,7 +35,7 @@ dependencies:
   stun:
     git:
       url: https://github.com/halifox/dart_stun
-      ref: ^3.0.0
+      ref: ^3.0.2
 ```
 
 然后执行：
